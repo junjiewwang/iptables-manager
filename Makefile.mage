@@ -1,0 +1,155 @@
+# IPTables 管理系统 - Mage 集成 Makefile
+# 这个 Makefile 提供了传统 make 命令到 mage 命令的映射
+
+.PHONY: help install build clean dev frontend backend docker deploy test lint status logs
+
+# 默认目标
+help:
+	@echo "IPTables 管理系统 - Mage 构建系统"
+	@echo ""
+	@echo "基本命令:"
+	@echo "  make install      - 安装所有依赖"
+	@echo "  make build        - 构建整个项目"
+	@echo "  make clean        - 清理构建产物"
+	@echo ""
+	@echo "开发命令:"
+	@echo "  make dev          - 启动完整开发环境"
+	@echo "  make frontend     - 启动前端开发服务器"
+	@echo "  make backend      - 启动后端开发服务器"
+	@echo ""
+	@echo "Docker 命令:"
+	@echo "  make docker       - 构建并运行 Docker 容器"
+	@echo "  make docker-build - 仅构建 Docker 镜像"
+	@echo ""
+	@echo "部署命令:"
+	@echo "  make deploy       - 完整部署流程"
+	@echo "  make up           - 启动服务"
+	@echo "  make down         - 停止服务"
+	@echo "  make restart      - 重启服务"
+	@echo ""
+	@echo "维护命令:"
+	@echo "  make test         - 运行测试"
+	@echo "  make lint         - 代码检查"
+	@echo "  make status       - 查看服务状态"
+	@echo "  make logs         - 查看服务日志"
+	@echo ""
+	@echo "Mage 命令:"
+	@echo "  mage -l           - 查看所有可用的 mage 命令"
+	@echo ""
+
+# 检查 Mage 是否安装
+check-mage:
+	@which mage > /dev/null || (echo "Mage 未安装，正在安装..." && go install github.com/magefile/mage@latest)
+
+# 基本命令
+install: check-mage
+	@echo "安装依赖..."
+	@mage install
+
+build: check-mage
+	@echo "构建项目..."
+	@mage build
+
+clean: check-mage
+	@echo "清理构建产物..."
+	@mage clean
+
+# 开发命令
+dev: check-mage
+	@echo "启动开发环境..."
+	@mage dev
+
+frontend: check-mage
+	@echo "启动前端开发服务器..."
+	@mage devFrontend
+
+backend: check-mage
+	@echo "启动后端开发服务器..."
+	@mage devBackend
+
+# Docker 命令
+docker: check-mage
+	@echo "构建并运行 Docker 容器..."
+	@mage docker
+
+docker-build: check-mage
+	@echo "构建 Docker 镜像..."
+	@mage dockerBuild
+
+# 部署命令
+deploy:
+	@echo "执行完整部署流程..."
+	@chmod +x scripts/mage-deploy.sh
+	@./scripts/mage-deploy.sh deploy
+
+up:
+	@echo "启动服务..."
+	@docker-compose -f docker-compose.unified.yml up -d
+
+down:
+	@echo "停止服务..."
+	@docker-compose -f docker-compose.unified.yml down
+
+restart: down up
+
+# 维护命令
+test: check-mage
+	@echo "运行测试..."
+	@mage test
+
+lint: check-mage
+	@echo "运行代码检查..."
+	@mage lint
+
+status:
+	@echo "服务状态:"
+	@docker-compose -f docker-compose.unified.yml ps
+
+logs:
+	@echo "查看服务日志..."
+	@docker-compose -f docker-compose.unified.yml logs -f
+
+# 快速命令
+quick-build: clean build docker-build
+
+quick-deploy: quick-build up
+
+# 开发工具
+shell-app:
+	@docker-compose -f docker-compose.unified.yml exec app sh
+
+shell-mysql:
+	@docker-compose -f docker-compose.unified.yml exec mysql mysql -u root -p
+
+# 备份和恢复
+backup-db:
+	@echo "备份数据库..."
+	@docker-compose -f docker-compose.unified.yml exec mysql mysqldump -u root -p iptables_management > backup_$(shell date +%Y%m%d_%H%M%S).sql
+
+# 健康检查
+health:
+	@echo "执行健康检查..."
+	@curl -f http://localhost:8080/health || echo "健康检查失败"
+
+# 清理所有资源
+reset:
+	@echo "重置整个环境..."
+	@docker-compose -f docker-compose.unified.yml down -v --remove-orphans
+	@docker system prune -af
+	@docker volume prune -f
+	@mage clean
+
+# 显示项目信息
+info:
+	@echo "项目信息:"
+	@echo "  - 项目名称: IPTables 管理系统"
+	@echo "  - 构建工具: Mage"
+	@echo "  - 前端框架: Vue 3 + TypeScript"
+	@echo "  - 后端框架: Go + Gin"
+	@echo "  - 数据库: MySQL 8.0"
+	@echo "  - 容器化: Docker + Docker Compose"
+	@echo ""
+	@echo "访问地址:"
+	@echo "  - 应用: http://localhost:8080"
+	@echo "  - API: http://localhost:8080/api"
+	@echo "  - 健康检查: http://localhost:8080/health"
