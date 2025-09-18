@@ -9,6 +9,7 @@ import (
 	"iptables-management-backend/handlers"
 	"iptables-management-backend/middleware"
 	"iptables-management-backend/services"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -51,15 +52,21 @@ func main() {
 	r.Use(cors.New(config))
 
 	// 静态文件服务 - 提供前端构建后的文件
-	r.Static("/static", "./dist")
+	r.Static("/assets", "./dist/assets")
 	r.StaticFile("/", "./dist/index.html")
 	r.StaticFile("/favicon.ico", "./dist/favicon.ico")
-	
+	r.StaticFile("/vite.svg", "./dist/vite.svg")
+
 	// 处理前端路由 - SPA 路由支持
 	r.NoRoute(func(c *gin.Context) {
 		// 如果请求的是 API 路径，返回 404
 		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
 			c.JSON(404, gin.H{"error": "API endpoint not found"})
+			return
+		}
+		// 如果请求的是静态资源路径，返回 404
+		if strings.HasPrefix(c.Request.URL.Path, "/assets/") {
+			c.JSON(404, gin.H{"error": "Static file not found"})
 			return
 		}
 		// 否则返回 index.html，让前端路由处理

@@ -256,11 +256,11 @@ const generateLinks = () => {
   
   // 基础网络连接
   links.push(
-    { source: 'internet', target: 'input', rule: '外部流量', target: 'INPUT' },
-    { source: 'output', target: 'internet', rule: '输出流量', target: 'OUTPUT' },
-    { source: 'lan', target: 'forward', rule: '转发流量', target: 'FORWARD' },
-    { source: 'localhost', target: 'input', rule: '本地输入', target: 'INPUT' },
-    { source: 'output', target: 'localhost', rule: '本地输出', target: 'OUTPUT' }
+    { source: 'internet', target: 'input', rule: '外部流量', action: 'INPUT' },
+    { source: 'output', target: 'internet', rule: '输出流量', action: 'OUTPUT' },
+    { source: 'lan', target: 'forward', rule: '转发流量', action: 'FORWARD' },
+    { source: 'localhost', target: 'input', rule: '本地输入', action: 'INPUT' },
+    { source: 'output', target: 'localhost', rule: '本地输出', action: 'OUTPUT' }
   )
   
   // 规则连接
@@ -274,7 +274,7 @@ const generateLinks = () => {
       source: chainId,
       target: `rule_${rule.id}`,
       rule: rule.rule_text || `${rule.target} 规则`,
-      target: rule.target
+      action: rule.target
     })
   })
   

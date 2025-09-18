@@ -46,8 +46,8 @@ CREATE TABLE IF NOT EXISTS `operation_logs` (
 
 -- 插入默认用户数据
 INSERT IGNORE INTO `users` (`username`, `password`, `role`, `created_at`, `updated_at`) VALUES
-('admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', NOW(), NOW()),
-('user1', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'user', NOW(), NOW());
+('admin', '$2a$10$eMLPLnwGJiyqq9YHeisxneca9jbi/vc7GD9kr2Sqdrre7xmnpFsPK', 'admin', NOW(), NOW()),
+('user1', '$2a$10$Nu7hx3AQ2WjUQfhqQ/MAlurjoCyNAg9Ti3LWKuy8q.ILGkg.VyMZm', 'user', NOW(), NOW());
 
 -- 插入示例规则数据
 INSERT IGNORE INTO `iptables_rules` (`chain_name`, `target`, `protocol`, `source_ip`, `destination_ip`, `destination_port`, `rule_text`, `created_at`, `updated_at`) VALUES

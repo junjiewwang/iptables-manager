@@ -2,7 +2,6 @@ package models
 
 import (
 	"time"
-	"gorm.io/gorm"
 )
 
 // IPTablesRule 规则模型
@@ -35,20 +34,20 @@ type OperationLog struct {
 
 // User 用户模型
 type User struct {
-	ID       uint   `json:"id" gorm:"primaryKey"`
-	Username string `json:"username" gorm:"size:50;uniqueIndex;not null"`
-	Password string `json:"password" gorm:"size:255;not null"`
-	Role     string `json:"role" gorm:"size:20;default:user"`
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	Username  string    `json:"username" gorm:"size:50;uniqueIndex;not null"`
+	Password  string    `json:"password" gorm:"size:255;not null"`
+	Role      string    `json:"role" gorm:"size:20;default:user"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Statistics 统计信息模型
 type Statistics struct {
-	TotalRules       int               `json:"total_rules"`
-	RulesByChain     map[string]int    `json:"rules_by_chain"`
-	RecentOperations int               `json:"recent_operations"`
-	SystemStatus     string            `json:"system_status"`
+	TotalRules       int            `json:"total_rules"`
+	RulesByChain     map[string]int `json:"rules_by_chain"`
+	RecentOperations int            `json:"recent_operations"`
+	SystemStatus     string         `json:"system_status"`
 }
 
 // TableName 设置表名

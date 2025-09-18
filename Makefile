@@ -1,119 +1,139 @@
-# IPTables 管理系统 Makefile
+# IPTables 管理系统 - Mage 集成 Makefile
+# 这个 Makefile 提供了传统 make 命令到 mage 命令的映射
 
-.PHONY: help dev build up down clean logs frontend backend database
+.PHONY: help install build clean dev frontend backend docker deploy test lint status logs
 
 # 默认目标
 help:
-	@echo "IPTables 管理系统 - 可用命令:"
+	@echo "IPTables 管理系统 - Mage 构建系统"
 	@echo ""
-	@echo "开发环境:"
-	@echo "  make dev          - 启动开发环境"
+	@echo "基本命令:"
+	@echo "  make install      - 安装所有依赖"
+	@echo "  make build        - 构建整个项目"
+	@echo "  make clean        - 清理构建产物"
+	@echo ""
+	@echo "开发命令:"
+	@echo "  make dev          - 启动完整开发环境"
 	@echo "  make frontend     - 启动前端开发服务器"
 	@echo "  make backend      - 启动后端开发服务器"
-	@echo "  make database     - 启动开发数据库"
 	@echo ""
-	@echo "生产环境:"
-	@echo "  make build        - 构建所有镜像"
-	@echo "  make up           - 启动所有服务"
-	@echo "  make down         - 停止所有服务"
-	@echo "  make restart      - 重启所有服务"
+	@echo "Docker 命令:"
+	@echo "  make docker       - 构建并运行 Docker 容器"
+	@echo "  make docker-build - 仅构建 Docker 镜像"
 	@echo ""
-	@echo "维护:"
+	@echo "部署命令:"
+	@echo "  make deploy       - 完整部署流程"
+	@echo "  make up           - 启动服务"
+	@echo "  make down         - 停止服务"
+	@echo "  make restart      - 重启服务"
+	@echo ""
+	@echo "维护命令:"
+	@echo "  make test         - 运行测试"
+	@echo "  make lint         - 代码检查"
+	@echo "  make status       - 查看服务状态"
 	@echo "  make logs         - 查看服务日志"
-	@echo "  make clean        - 清理Docker资源"
-	@echo "  make reset        - 重置整个环境"
+	@echo ""
+	@echo "Mage 命令:"
+	@echo "  mage -l           - 查看所有可用的 mage 命令"
+	@echo ""
 
-# 开发环境
-dev:
+# 检查 Mage 是否安装
+check-mage:
+	@which mage > /dev/null || (echo "Mage 未安装，正在安装..." && go install github.com/magefile/mage@latest)
+
+# 基本命令
+install: check-mage
+	@echo "安装依赖..."
+	@mage install
+
+build: check-mage
+	@echo "构建项目..."
+	@mage build
+
+clean: check-mage
+	@echo "清理构建产物..."
+	@mage clean
+
+# 开发命令
+dev: check-mage
 	@echo "启动开发环境..."
-	@chmod +x scripts/dev.sh
-	@./scripts/dev.sh
+	@mage dev
 
-# 前端开发
-frontend:
-	@echo "启动前端开发服务器..."
-	@cd frontend && npm install && npm run dev
 
-# 后端开发
-backend:
-	@echo "启动后端开发服务器..."
-	@cd backend && go mod tidy && go run main.go
 
-# 开发数据库
-database:
-	@echo "启动开发数据库..."
-	@docker run -d \
-		--name iptables-mysql-dev \
-		-e MYSQL_ROOT_PASSWORD=root123456 \
-		-e MYSQL_DATABASE=iptables_management \
-		-e MYSQL_USER=iptables_user \
-		-e MYSQL_PASSWORD=iptables_pass \
-		-p 3306:3306 \
-		-v $(PWD)/sql/init.sql:/docker-entrypoint-initdb.d/init.sql \
-		mysql:8.0
+docker-build:
+	@echo "构建 Docker 镜像..."
+	@docker compose  build
 
-# 生产环境
-build:
-	@echo "构建Docker镜像..."
-	@docker-compose build
 
 up:
-	@echo "启动生产环境..."
-	@chmod +x scripts/deploy.sh
-	@./scripts/deploy.sh prod
+	@echo "启动服务..."
+	@docker compose  up -d
 
 down:
-	@echo "停止所有服务..."
-	@docker-compose down
+	@echo "停止服务..."
+	@docker compose  down
 
 restart: down up
 
 # 维护命令
-logs:
-	@echo "查看服务日志..."
-	@docker-compose logs -f
+test: check-mage
+	@echo "运行测试..."
+	@mage test
 
-clean:
-	@echo "清理Docker资源..."
-	@docker-compose down -v
-	@docker system prune -f
-	@docker volume prune -f
+lint: check-mage
+	@echo "运行代码检查..."
+	@mage lint
 
-reset: clean
-	@echo "重置整个环境..."
-	@docker-compose down -v --remove-orphans
-	@docker system prune -af
-	@docker volume prune -f
-
-# 快速部署
-deploy:
-	@echo "快速部署..."
-	@chmod +x scripts/deploy.sh
-	@./scripts/deploy.sh
-
-# 检查服务状态
 status:
 	@echo "服务状态:"
-	@docker-compose ps
+	@docker compose  ps
 
-# 进入容器
-shell-frontend:
-	@docker-compose exec frontend sh
+logs:
+	@echo "查看服务日志..."
+	@docker compose  logs -f
 
-shell-backend:
-	@docker-compose exec backend sh
+# 快速命令
+quick-build: clean build docker-build
+
+quick-deploy: quick-build up
+
+# 开发工具
+shell-app:
+	@docker compose  exec app sh
 
 shell-mysql:
-	@docker-compose exec mysql mysql -u root -p
+	@docker compose  exec mysql mysql -u root -p
 
-# 备份数据库
+# 备份和恢复
 backup-db:
 	@echo "备份数据库..."
-	@docker-compose exec mysql mysqldump -u root -p iptables_management > backup_$(shell date +%Y%m%d_%H%M%S).sql
+	@docker compose  exec mysql mysqldump -u root -p iptables_management > backup_$(shell date +%Y%m%d_%H%M%S).sql
 
-# 安装依赖
-install:
-	@echo "安装前端依赖..."
-	@cd frontend && npm install
-	@echo "安装后端依赖..."
-	@cd backend && go mod tidy
+# 健康检查
+health:
+	@echo "执行健康检查..."
+	@curl -f http://localhost:8080/health || echo "健康检查失败"
+
+# 清理所有资源
+reset:
+	@echo "重置整个环境..."
+	@docker compose  down -v --remove-orphans
+	@docker system prune -af
+	@docker volume prune -f
+	@mage clean
+
+# 显示项目信息
+info:
+	@echo "项目信息:"
+	@echo "  - 项目名称: IPTables 管理系统"
+	@echo "  - 构建工具: Mage"
+	@echo "  - 前端框架: Vue 3 + TypeScript"
+	@echo "  - 后端框架: Go + Gin"
+	@echo "  - 数据库: MySQL 8.0"
+	@echo "  - 容器化: Docker + Docker Compose"
+	@echo ""
+	@echo "访问地址:"
+	@echo "  - 应用: http://localhost:8080"
+	@echo "  - API: http://localhost:8080/api"
+	@echo "  - 健康检查: http://localhost:8080/health"
