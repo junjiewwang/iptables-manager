@@ -30,6 +30,9 @@ func main() {
 	authService := services.NewAuthService()
 	ruleService := services.NewRuleService()
 	logService := services.NewLogService()
+	tableService := services.NewTableService()
+	topologyService := services.NewTopologyService()
+	networkService := services.NewNetworkService()
 
 	// 创建默认用户
 	if err := authService.CreateDefaultUsers(); err != nil {
@@ -40,6 +43,9 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService, logService)
 	ruleHandler := handlers.NewRuleHandler(ruleService, logService)
 	logHandler := handlers.NewLogHandler(logService)
+	tableHandler := handlers.NewTableHandler(tableService, logService)
+	topologyHandler := handlers.NewTopologyHandler(topologyService)
+	networkHandler := handlers.NewNetworkHandler(networkService, logService)
 
 	// 创建Gin路由器
 	r := gin.Default()
@@ -90,11 +96,34 @@ func main() {
 			auth.PUT("/rules/:id", ruleHandler.UpdateRule)
 			auth.DELETE("/rules/:id", ruleHandler.DeleteRule)
 
+			auth.GET("/rules/system", ruleHandler.GetSystemRules)
+			auth.POST("/rules/sync", ruleHandler.SyncSystemRules)
+
 			// 统计信息
 			auth.GET("/statistics", ruleHandler.GetStatistics)
 
 			// 操作日志
 			auth.GET("/logs", logHandler.GetLogs)
+
+			// 表管理
+			auth.GET("/tables", tableHandler.GetAllTables)
+			auth.GET("/tables/:table", tableHandler.GetTableInfo)
+			auth.GET("/tables/:table/chains/:chain", tableHandler.GetChainVerbose)
+			auth.GET("/special-chains", tableHandler.GetSpecialChains)
+
+			// 拓扑图
+			auth.GET("/topology", topologyHandler.GetTopology)
+			auth.GET("/topology/stats", topologyHandler.GetTopologyStats)
+			auth.POST("/topology/refresh", topologyHandler.RefreshTopology)
+			auth.GET("/topology/export", topologyHandler.ExportTopology)
+			auth.GET("/topology/health", topologyHandler.GetTopologyHealth)
+
+			// 网络接口管理
+			auth.GET("/network/interfaces", networkHandler.GetInterfaces)
+			auth.GET("/docker/bridges", networkHandler.GetDockerBridges)
+			auth.GET("/bridges/:name/rules", networkHandler.GetBridgeRules)
+			auth.GET("/network/connections", networkHandler.GetNetworkConnections)
+			auth.GET("/network/routes", networkHandler.GetRouteTable)
 
 			// 测试规则（模拟）
 			auth.POST("/test-rule", func(c *gin.Context) {

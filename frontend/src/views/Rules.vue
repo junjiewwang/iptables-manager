@@ -12,14 +12,23 @@
             <el-icon><Refresh /></el-icon>
             刷新
           </el-button>
+          <el-button type="info" @click="getSystemRules">
+            <el-icon><Monitor /></el-icon>
+            实时规则
+          </el-button>
+          <el-button type="success" @click="syncSystemRules">
+            <el-icon><Connection /></el-icon>
+            同步规则
+          </el-button>
         </div>
         <div class="operation-right">
           <el-input
             v-model="searchText"
             placeholder="搜索规则..."
-            style="width: 300px"
+            style="width: 200px"
             clearable
-            @input="handleSearch"
+            @clear="loadRules"
+            @keyup.enter="loadRules"
           >
             <template #prefix>
               <el-icon><Search /></el-icon>
@@ -154,16 +163,18 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
-import { apiService, type IPTablesRule } from '../api'
+import { Plus, Refresh, Monitor, Connection, Search, Edit, Delete } from '@element-plus/icons-vue'
+import { apiService } from '@/api'
+import type { Rule, RuleForm } from '@/types'
 
 const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const searchText = ref('')
-const rules = ref<IPTablesRule[]>([])
+const rules = ref<Rule[]>([])
 const ruleFormRef = ref<FormInstance>()
 
-const ruleForm = reactive<IPTablesRule>({
+const ruleForm = reactive<RuleForm>({
   chain_name: '',
   target: '',
   protocol: '',
@@ -214,14 +225,25 @@ const formatDate = (dateString: string) => {
 }
 
 const loadRules = async () => {
+  console.log('[DEBUG] loadRules called')
   loading.value = true
   try {
+    console.log('[DEBUG] Making API call to get rules')
     const response = await apiService.getRules()
+    console.log('[DEBUG] API response received:', response)
+    console.log('[DEBUG] Response data:', response.data)
+    console.log('[DEBUG] Response data type:', typeof response.data)
+    console.log('[DEBUG] Response data length:', Array.isArray(response.data) ? response.data.length : 'Not an array')
+    
     rules.value = response.data
+    console.log('[DEBUG] Rules assigned to reactive variable:', rules.value)
+    console.log('[DEBUG] Rules length after assignment:', rules.value.length)
   } catch (error) {
+    console.error('[ERROR] Failed to load rules:', error)
     ElMessage.error('加载规则失败')
   } finally {
     loading.value = false
+    console.log('[DEBUG] loadRules completed, loading state:', loading.value)
   }
 }
 
@@ -231,13 +253,13 @@ const showAddDialog = () => {
   resetForm()
 }
 
-const editRule = (rule: IPTablesRule) => {
+const editRule = (rule: Rule) => {
   isEdit.value = true
   dialogVisible.value = true
   Object.assign(ruleForm, rule)
 }
 
-const deleteRule = async (rule: IPTablesRule) => {
+const deleteRule = async (rule: Rule) => {
   try {
     await ElMessageBox.confirm('确定要删除这条规则吗？', '确认删除', {
       type: 'warning'
@@ -289,6 +311,43 @@ const resetForm = () => {
 
 const refreshRules = () => {
   loadRules()
+}
+
+const getSystemRules = async () => {
+  console.log('[DEBUG] getSystemRules called')
+  loading.value = true
+  try {
+    const response = await apiService.getSystemRules()
+    rules.value = response.data
+    ElMessage.success(`获取到 ${response.data.length} 条实时规则`)
+    console.log('[DEBUG] System rules loaded:', response.data)
+  } catch (error) {
+    console.error('[ERROR] Failed to get system rules:', error)
+    ElMessage.error('获取实时规则失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const syncSystemRules = async () => {
+  console.log('[DEBUG] syncSystemRules called')
+  try {
+    await ElMessageBox.confirm('确定要同步系统规则到数据库吗？这将覆盖现有的数据库规则。', '确认同步', {
+      type: 'warning'
+    })
+    
+    loading.value = true
+    await apiService.syncSystemRules()
+    ElMessage.success('系统规则同步成功')
+    loadRules() // 重新加载规则列表
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('[ERROR] Failed to sync system rules:', error)
+      ElMessage.error('同步系统规则失败')
+    }
+  } finally {
+    loading.value = false
+  }
 }
 
 const handleSearch = () => {

@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
 	"iptables-management-backend/models"
 	"iptables-management-backend/services"
-	"github.com/gin-gonic/gin"
 )
 
 type RuleHandler struct {
@@ -24,12 +25,26 @@ func NewRuleHandler(ruleService *services.RuleService, logService *services.LogS
 
 // GetRules 获取所有规则
 func (h *RuleHandler) GetRules(c *gin.Context) {
+	log.Println("[DEBUG] GetRules API called")
+
 	rules, err := h.ruleService.GetAllRules()
 	if err != nil {
+		log.Printf("[ERROR] Failed to get rules from service: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取规则失败"})
 		return
 	}
 
+	log.Printf("[DEBUG] Retrieved %d rules from database", len(rules))
+
+	// 打印前几条规则的详细信息用于调试
+	for i, rule := range rules {
+		if i < 3 { // 只打印前3条
+			log.Printf("[DEBUG] Rule %d: ID=%d, Chain=%s, Target=%s, RuleText=%s",
+				i+1, rule.ID, rule.ChainName, rule.Target, rule.RuleText)
+		}
+	}
+
+	log.Printf("[DEBUG] Returning %d rules to client", len(rules))
 	c.JSON(http.StatusOK, rules)
 }
 
@@ -143,4 +158,43 @@ func (h *RuleHandler) GetStatistics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+// GetSystemRules 获取系统实时规则
+func (h *RuleHandler) GetSystemRules(c *gin.Context) {
+	log.Println("[DEBUG] GetSystemRules API called")
+
+	rules, err := h.ruleService.GetSystemRules()
+	if err != nil {
+		log.Printf("[ERROR] Failed to get system rules: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取系统规则失败"})
+		return
+	}
+
+	log.Printf("[DEBUG] Retrieved %d system rules", len(rules))
+	c.JSON(http.StatusOK, rules)
+}
+
+// SyncSystemRules 同步系统规则到数据库
+func (h *RuleHandler) SyncSystemRules(c *gin.Context) {
+	log.Println("[DEBUG] SyncSystemRules API called")
+
+	err := h.ruleService.SyncSystemRules()
+	if err != nil {
+		log.Printf("[ERROR] Failed to sync system rules: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "同步系统规则失败"})
+		return
+	}
+
+	// 记录操作日志
+	username, _ := c.Get("username")
+	h.logService.LogOperation(
+		username.(string),
+		"同步规则",
+		"同步系统iptables规则到数据库",
+		c.ClientIP(),
+	)
+
+	log.Println("[DEBUG] System rules synced successfully")
+	c.JSON(http.StatusOK, gin.H{"message": "系统规则同步成功"})
 }

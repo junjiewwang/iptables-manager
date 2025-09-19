@@ -94,7 +94,7 @@ logs:
 	@docker compose  logs -f
 
 # 快速命令
-quick-build: clean build docker-build
+quick-build: docker-build
 
 quick-deploy: quick-build up
 

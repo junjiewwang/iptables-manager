@@ -23,9 +23,17 @@
             <el-icon><List /></el-icon>
             <span>规则管理</span>
           </el-menu-item>
+          <el-menu-item index="/tables">
+            <el-icon><Grid /></el-icon>
+            <span>表管理</span>
+          </el-menu-item>
           <el-menu-item index="/topology">
             <el-icon><Share /></el-icon>
             <span>拓扑图</span>
+          </el-menu-item>
+          <el-menu-item index="/interfaces">
+            <el-icon><Connection /></el-icon>
+            <span>网络接口</span>
           </el-menu-item>
           <el-menu-item index="/logs">
             <el-icon><Document /></el-icon>
@@ -74,7 +82,9 @@ const getPageTitle = () => {
   const titles: Record<string, string> = {
     '/dashboard': '仪表盘',
     '/rules': '规则管理',
+    '/tables': '表管理',
     '/topology': '拓扑图',
+    '/interfaces': '网络接口',
     '/logs': '操作日志'
   }
   return titles[router.currentRoute.value.path] || '管理系统'

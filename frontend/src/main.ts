@@ -8,7 +8,9 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import Dashboard from './views/Dashboard.vue'
 import Rules from './views/Rules.vue'
+import Tables from './views/Tables.vue'
 import Topology from './views/Topology.vue'
+import Interfaces from './views/Interfaces.vue'
 import Logs from './views/Logs.vue'
 import Login from './views/Login.vue'
 
@@ -17,7 +19,9 @@ const routes = [
   { path: '/', redirect: '/dashboard' },
   { path: '/dashboard', component: Dashboard },
   { path: '/rules', component: Rules },
+  { path: '/tables', component: Tables },
   { path: '/topology', component: Topology },
+  { path: '/interfaces', component: Interfaces },
   { path: '/logs', component: Logs }
 ]
 
