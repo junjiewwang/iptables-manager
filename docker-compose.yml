@@ -17,9 +17,6 @@ services:
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
-    volumes:
-      - app-logs:/app/logs
-      - sqlite-data:/app/data
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
