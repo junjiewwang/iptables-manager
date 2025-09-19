@@ -17,6 +17,17 @@
         
         <el-divider direction="vertical" />
         
+        <!-- 新增：iptables链路视图切换 -->
+        <el-button 
+          :type="viewMode === 'iptables' ? 'primary' : 'default'"
+          size="small"
+          @click="toggleViewMode"
+        >
+          IPTables链路
+        </el-button>
+        
+        <el-divider direction="vertical" />
+        
         <!-- 过滤控件 -->
         <el-select 
           v-model="protocolFilter" 
@@ -55,6 +66,8 @@
           <el-option label="INPUT" value="INPUT" />
           <el-option label="OUTPUT" value="OUTPUT" />
           <el-option label="FORWARD" value="FORWARD" />
+          <el-option label="PREROUTING" value="PREROUTING" />
+          <el-option label="POSTROUTING" value="POSTROUTING" />
         </el-select>
         
         <el-divider direction="vertical" />
@@ -70,7 +83,76 @@
 
     <div class="topology-content">
       <div class="topology-sidebar">
-        <el-card class="legend-card">
+        <!-- IPTables链路图例 -->
+        <el-card class="legend-card" v-if="viewMode === 'iptables'">
+          <template #header>
+            <span>IPTables链路图例</span>
+          </template>
+          <div class="legend-items">
+            <div class="legend-section">
+              <h4>数据包流向</h4>
+              <div class="legend-item">
+                <div class="legend-line packet-flow"></div>
+                <span>数据包流</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-line nat-flow"></div>
+                <span>NAT流</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-line filter-flow"></div>
+                <span>过滤流</span>
+              </div>
+            </div>
+            
+            <div class="legend-section">
+              <h4>处理阶段</h4>
+              <div class="legend-item">
+                <div class="legend-icon prerouting-icon"></div>
+                <span>PREROUTING</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon input-icon"></div>
+                <span>INPUT</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon forward-icon"></div>
+                <span>FORWARD</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon output-icon"></div>
+                <span>OUTPUT</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon postrouting-icon"></div>
+                <span>POSTROUTING</span>
+              </div>
+            </div>
+            
+            <div class="legend-section">
+              <h4>表类型</h4>
+              <div class="legend-item">
+                <div class="legend-icon raw-table"></div>
+                <span>raw表</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon mangle-table"></div>
+                <span>mangle表</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon nat-table"></div>
+                <span>nat表</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon filter-table"></div>
+                <span>filter表</span>
+              </div>
+            </div>
+          </div>
+        </el-card>
+
+        <!-- 原始图例 -->
+        <el-card class="legend-card" v-else>
           <template #header>
             <span>图例</span>
           </template>
@@ -127,6 +209,31 @@
               <div class="legend-item">
                 <el-tag type="warning" size="small">REJECT</el-tag>
                 <span>拒绝</span>
+              </div>
+            </div>
+            
+            <!-- 处理阶段图例 -->
+            <div class="legend-section">
+              <h4>处理阶段</h4>
+              <div class="legend-item">
+                <div class="legend-icon stage-prerouting-icon"></div>
+                <span>PREROUTING</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon stage-input-icon"></div>
+                <span>INPUT</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon stage-forward-icon"></div>
+                <span>FORWARD</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon stage-output-icon"></div>
+                <span>OUTPUT</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-icon stage-postrouting-icon"></div>
+                <span>POSTROUTING</span>
               </div>
             </div>
           </div>
@@ -222,12 +329,216 @@
           v-loading="loading"
           element-loading-text="加载拓扑图数据..."
         >
+          <!-- IPTables链路视图 -->
           <svg 
+            v-if="viewMode === 'iptables'"
+            ref="svgElement" 
+            class="topology-svg iptables-topology"
+            @click="onCanvasClick"
+          >
+            <!-- 定义箭头标记和渐变 -->
+            <defs>
+              <!-- 数据包流箭头 -->
+              <marker id="packet-arrow" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto">
+                <polygon points="0 0, 12 4, 0 8" fill="#409EFF" />
+              </marker>
+              
+              <!-- NAT流箭头 -->
+              <marker id="nat-arrow" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto">
+                <polygon points="0 0, 12 4, 0 8" fill="#FF5722" />
+              </marker>
+              
+              <!-- 过滤流箭头 -->
+              <marker id="filter-arrow" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto">
+                <polygon points="0 0, 12 4, 0 8" fill="#4CAF50" />
+              </marker>
+              
+              <!-- 处理阶段渐变 -->
+              <linearGradient id="preroutingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#FF9800;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#F57C00;stop-opacity:1" />
+              </linearGradient>
+              
+              <linearGradient id="inputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#388E3C;stop-opacity:1" />
+              </linearGradient>
+              
+              <linearGradient id="forwardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#FF5722;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#D84315;stop-opacity:1" />
+              </linearGradient>
+              
+              <linearGradient id="outputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#2196F3;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#1976D2;stop-opacity:1" />
+              </linearGradient>
+              
+              <linearGradient id="postroutingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#9C27B0;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#7B1FA2;stop-opacity:1" />
+              </linearGradient>
+            </defs>
+
+            <!-- 绘制IPTables链路流程 -->
+            <g class="iptables-flow">
+              <!-- 数据包入口 -->
+              <g class="packet-entry" transform="translate(50, 200)">
+                <circle r="25" fill="#607D8B" stroke="#455A64" stroke-width="2"/>
+                <text y="5" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="12" font-weight="bold">
+                  数据包入口
+                </text>
+              </g>
+
+              <!-- PREROUTING阶段 -->
+              <g class="prerouting-stage" transform="translate(200, 200)">
+                <rect x="-40" y="-20" width="80" height="40" rx="5" fill="url(#preroutingGradient)" stroke="#F57C00" stroke-width="2"/>
+                <text y="5" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="11" font-weight="bold">
+                  PREROUTING
+                </text>
+                <text y="20" text-anchor="middle" dominant-baseline="middle" fill="#666" font-size="9">
+                  raw → mangle → nat
+                </text>
+              </g>
+
+              <!-- 路由判断 -->
+              <g class="routing-decision" transform="translate(350, 200)">
+                <polygon points="0,-20 25,0 0,20 -25,0" fill="#FFC107" stroke="#F57C00" stroke-width="2"/>
+                <text y="5" text-anchor="middle" dominant-baseline="middle" fill="#333" font-size="10" font-weight="bold">
+                  路由判断
+                </text>
+              </g>
+
+              <!-- INPUT路径 -->
+              <g class="input-path" transform="translate(500, 100)">
+                <rect x="-35" y="-20" width="70" height="40" rx="5" fill="url(#inputGradient)" stroke="#388E3C" stroke-width="2"/>
+                <text y="5" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="11" font-weight="bold">
+                  INPUT
+                </text>
+                <text y="20" text-anchor="middle" dominant-baseline="middle" fill="#666" font-size="9">
+                  mangle → filter
+                </text>
+              </g>
+
+              <!-- FORWARD路径 -->
+              <g class="forward-path" transform="translate(500, 200)">
+                <rect x="-35" y="-20" width="70" height="40" rx="5" fill="url(#forwardGradient)" stroke="#D84315" stroke-width="2"/>
+                <text y="5" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="11" font-weight="bold">
+                  FORWARD
+                </text>
+                <text y="20" text-anchor="middle" dominant-baseline="middle" fill="#666" font-size="9">
+                  mangle → filter
+                </text>
+              </g>
+
+              <!-- OUTPUT路径 -->
+              <g class="output-path" transform="translate(500, 300)">
+                <rect x="-35" y="-20" width="70" height="40" rx="5" fill="url(#outputGradient)" stroke="#1976D2" stroke-width="2"/>
+                <text y="5" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="11" font-weight="bold">
+                  OUTPUT
+                </text>
+                <text y="20" text-anchor="middle" dominant-baseline="middle" fill="#666" font-size="9">
+                  raw → mangle → nat → filter
+                </text>
+              </g>
+
+              <!-- 本地进程 -->
+              <g class="local-process" transform="translate(650, 100)">
+                <circle r="20" fill="#4CAF50" stroke="#388E3C" stroke-width="2"/>
+                <text y="5" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="10" font-weight="bold">
+                  本地进程
+                </text>
+              </g>
+
+              <!-- POSTROUTING阶段 -->
+              <g class="postrouting-stage" transform="translate(650, 250)">
+                <rect x="-40" y="-20" width="80" height="40" rx="5" fill="url(#postroutingGradient)" stroke="#7B1FA2" stroke-width="2"/>
+                <text y="5" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="11" font-weight="bold">
+                  POSTROUTING
+                </text>
+                <text y="20" text-anchor="middle" dominant-baseline="middle" fill="#666" font-size="9">
+                  mangle → nat
+                </text>
+              </g>
+
+              <!-- 数据包出口 -->
+              <g class="packet-exit" transform="translate(800, 250)">
+                <circle r="25" fill="#607D8B" stroke="#455A64" stroke-width="2"/>
+                <text y="5" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="12" font-weight="bold">
+                  数据包出口
+                </text>
+              </g>
+
+              <!-- 连接线 -->
+              <!-- 入口到PREROUTING -->
+              <path d="M 75 200 L 160 200" class="packet-flow-line" marker-end="url(#packet-arrow)"/>
+              
+              <!-- PREROUTING到路由判断 -->
+              <path d="M 240 200 L 325 200" class="packet-flow-line" marker-end="url(#packet-arrow)"/>
+              
+              <!-- 路由判断到INPUT -->
+              <path d="M 350 180 L 465 120" class="packet-flow-line" marker-end="url(#packet-arrow)"/>
+              
+              <!-- 路由判断到FORWARD -->
+              <path d="M 350 200 L 465 200" class="packet-flow-line" marker-end="url(#packet-arrow)"/>
+              
+              <!-- 路由判断到OUTPUT -->
+              <path d="M 350 220 L 465 280" class="packet-flow-line" marker-end="url(#packet-arrow)"/>
+              
+              <!-- INPUT到本地进程 -->
+              <path d="M 535 100 L 630 100" class="packet-flow-line" marker-end="url(#packet-arrow)"/>
+              
+              <!-- FORWARD到POSTROUTING -->
+              <path d="M 535 200 L 610 230" class="packet-flow-line" marker-end="url(#packet-arrow)"/>
+              
+              <!-- OUTPUT到POSTROUTING -->
+              <path d="M 535 300 L 610 270" class="packet-flow-line" marker-end="url(#packet-arrow)"/>
+              
+              <!-- POSTROUTING到出口 -->
+              <path d="M 690 250 L 775 250" class="packet-flow-line" marker-end="url(#packet-arrow)"/>
+              
+              <!-- 本地进程返回路径 -->
+              <path d="M 650 120 L 650 230" class="return-flow-line" marker-end="url(#nat-arrow)"/>
+            </g>
+
+            <!-- 表处理阶段标注 -->
+            <g class="table-labels">
+              <text x="200" y="280" text-anchor="middle" class="table-label">raw表</text>
+              <text x="200" y="295" text-anchor="middle" class="table-label">mangle表</text>
+              <text x="200" y="310" text-anchor="middle" class="table-label">nat表</text>
+              
+              <text x="500" y="60" text-anchor="middle" class="table-label">mangle表</text>
+              <text x="500" y="75" text-anchor="middle" class="table-label">filter表</text>
+              
+              <text x="500" y="160" text-anchor="middle" class="table-label">mangle表</text>
+              <text x="500" y="175" text-anchor="middle" class="table-label">filter表</text>
+              
+              <text x="500" y="360" text-anchor="middle" class="table-label">raw表</text>
+              <text x="500" y="375" text-anchor="middle" class="table-label">mangle表</text>
+              <text x="500" y="390" text-anchor="middle" class="table-label">nat表</text>
+              <text x="500" y="405" text-anchor="middle" class="table-label">filter表</text>
+              
+              <text x="650" y="310" text-anchor="middle" class="table-label">mangle表</text>
+              <text x="650" y="325" text-anchor="middle" class="table-label">nat表</text>
+            </g>
+
+            <!-- 特殊说明 -->
+            <g class="special-notes">
+              <rect x="50" y="350" width="200" height="60" fill="#FFF3E0" stroke="#FF9800" stroke-width="1" rx="3"/>
+              <text x="60" y="370" class="note-text">CentOS6: INPUT链规则不能存在于Nat类中</text>
+              <text x="60" y="385" class="note-text">CentOS7: INPUT链规则可以存在于Nat类中</text>
+              <text x="60" y="400" class="note-text">IP_FORWARD: /proc/sys/net/ipv4/ip_forward</text>
+            </g>
+          </svg>
+
+          <!-- 原始拓扑图视图 -->
+          <svg 
+            v-else
             ref="svgElement" 
             class="topology-svg"
             @click="onCanvasClick"
           >
-            <!-- 定义箭头标记和渐变 -->
+            <!-- 原有的SVG内容保持不变 -->
             <defs>
               <!-- 普通箭头 -->
               <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -239,19 +550,29 @@
                 <polygon points="0 0, 10 3.5, 0 7" fill="#409EFF" />
               </marker>
               
-              <!-- INPUT规则箭头 -->
+              <!-- PREROUTING阶段箭头 -->
+              <marker id="arrowhead-prerouting" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#FF5722" />
+              </marker>
+              
+              <!-- INPUT阶段箭头 -->
               <marker id="arrowhead-input" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                 <polygon points="0 0, 10 3.5, 0 7" fill="#4CAF50" />
               </marker>
               
-              <!-- OUTPUT规则箭头 -->
+              <!-- FORWARD阶段箭头 -->
+              <marker id="arrowhead-forward" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#FF9800" />
+              </marker>
+              
+              <!-- OUTPUT阶段箭头 -->
               <marker id="arrowhead-output" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                 <polygon points="0 0, 10 3.5, 0 7" fill="#2196F3" />
               </marker>
               
-              <!-- FORWARD规则箭头 -->
-              <marker id="arrowhead-forward" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#FF9800" />
+              <!-- POSTROUTING阶段箭头 -->
+              <marker id="arrowhead-postrouting" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#9C27B0" />
               </marker>
               
               <!-- 渐变定义 -->
@@ -263,6 +584,32 @@
               <linearGradient id="ruleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" style="stop-color:#E6A23C;stop-opacity:1" />
                 <stop offset="100%" style="stop-color:#b88230;stop-opacity:1" />
+              </linearGradient>
+              
+              <!-- 处理阶段渐变 -->
+              <linearGradient id="preroutingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#FF5722;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#D84315;stop-opacity:1" />
+              </linearGradient>
+              
+              <linearGradient id="inputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#388E3C;stop-opacity:1" />
+              </linearGradient>
+              
+              <linearGradient id="forwardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#FF9800;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#F57C00;stop-opacity:1" />
+              </linearGradient>
+              
+              <linearGradient id="outputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#2196F3;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#1976D2;stop-opacity:1" />
+              </linearGradient>
+              
+              <linearGradient id="postroutingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#9C27B0;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#7B1FA2;stop-opacity:1" />
               </linearGradient>
             </defs>
 
@@ -324,6 +671,30 @@
                   fill="url(#ruleGradient)"
                 />
                 
+                <!-- 处理阶段节点 -->
+                <circle
+                  v-if="node.type === 'stage'"
+                  r="25"
+                  :class="['node-stage', `node-stage-${getStageType(node)}`]"
+                  :fill="getStageGradient(node)"
+                />
+                
+                <!-- 路由判断节点 -->
+                <polygon
+                  v-if="node.type === 'decision'"
+                  points="-15,-15 15,-15 0,15"
+                  class="node-decision"
+                  fill="url(#decisionGradient)"
+                />
+                
+                <!-- 数据包节点 -->
+                <circle
+                  v-if="node.type === 'packet'"
+                  r="12"
+                  class="node-packet"
+                  fill="#FF4444"
+                />
+                
                 <!-- 节点标签 -->
                 <text
                   y="30"
@@ -354,6 +725,39 @@
                   dominant-baseline="middle"
                 >
                   {{ node.rule_number }}
+                </text>
+                
+                <!-- 处理阶段图标 -->
+                <text
+                  v-if="node.type === 'stage'"
+                  y="3"
+                  class="node-stage-icon"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
+                >
+                  {{ getStageIcon(node) }}
+                </text>
+                
+                <!-- 路由判断图标 -->
+                <text
+                  v-if="node.type === 'decision'"
+                  y="3"
+                  class="node-decision-icon"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
+                >
+                  ?
+                </text>
+                
+                <!-- 数据包图标 -->
+                <text
+                  v-if="node.type === 'packet'"
+                  y="3"
+                  class="node-packet-icon"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
+                >
+                  📦
                 </text>
               </g>
             </g>
@@ -436,6 +840,7 @@
           show-icon
           :closable="false"
         />
+        
         <div class="error-actions">
           <el-button @click="retryLoadData" type="primary">重试</el-button>
           <el-button @click="goToDashboard">返回首页</el-button>
@@ -468,6 +873,9 @@ const errorDetails = ref('')
 const protocolFilter = ref<string>('')
 const portFilter = ref<string>('')
 const chainFilter = ref<string>('')
+
+// 新增：处理阶段过滤
+const stageFilter = ref<string>('')
 
 // 自动刷新
 const autoRefresh = ref(false)
@@ -880,164 +1288,6 @@ const goToDashboard = () => {
 
 .interface-internal-icon {
   background: linear-gradient(45deg, #67C23A, #529b2e);
-}
-
-.interface-docker-icon {
-  background: linear-gradient(45deg, #9C27B0, #7B1FA2);
-}
-
-.rule-icon {
-  background: linear-gradient(45deg, #E6A23C, #b88230);
-  border-radius: 3px;
-}
-
-/* 连接线图标 */
-.input-line {
-  background: #4CAF50;
-}
-
-.output-line {
-  background: #2196F3;
-}
-
-.forward-line {
-  background: #FF9800;
-}
-
-/* 动作图标 */
-.accept-action {
-  background: #4CAF50;
-}
-
-.drop-action {
-  background: #F56C6C;
-}
-
-.reject-action {
-  background: #E6A23C;
-}
-
-.flow-info h4 {
-  margin: 0 0 10px 0;
-  color: #303133;
-}
-
-.flow-info p {
-  margin: 0 0 15px 0;
-  color: #606266;
-  font-size: 14px;
-}
-
-.flow-path {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.flow-step {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px;
-  background: #f8f9fa;
-  border-radius: 4px;
-}
-
-.step-number {
-  background: #409EFF;
-  color: white;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.step-name {
-  flex: 1;
-  font-size: 13px;
-}
-
-.arrow-icon {
-  color: #909399;
-}
-
-.topology-main {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-}
-
-.topology-canvas {
-  width: 100%;
-  height: 100%;
-  background: white;
-  position: relative;
-}
-
-.topology-canvas :deep(.el-loading-mask) {
-  background-color: rgba(255, 255, 255, 0.9);
-}
-
-:deep(.el-tooltip__popper) {
-  max-width: 300px;
-}
-
-.topology-svg {
-  width: 100%;
-  height: 100%;
-}
-
-/* 节点样式 */
-.node {
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.node:hover {
-  transform: scale(1.05);
-}
-
-.node-highlighted {
-  filter: drop-shadow(0 0 8px #409EFF);
-}
-
-/* 接口节点样式 */
-.interface-bg {
-  stroke-width: 3;
-  transition: all 0.3s ease;
-}
-
-.interface-external {
-  fill: url(#interfaceGradient);
-  stroke: #337ecc;
-}
-
-.interface-internal {
-  fill: #67C23A;
-  stroke: #529b2e;
-}
-
-.interface-docker {
-  fill: #9C27B0;
-  stroke: #7B1FA2;
-}
-
-.interface-name {
-  fill: white;
-  font-size: 11px;
-  font-weight: bold;
-  pointer-events: none;
-}
-
-.interface-type {
-  fill: white;
-  font-size: 8px;
-  pointer-events: none;
-  opacity: 0.9;
 }
 
 /* 规则节点样式 */
