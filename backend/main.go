@@ -46,6 +46,7 @@ func main() {
 	tableHandler := handlers.NewTableHandler(tableService, logService)
 	topologyHandler := handlers.NewTopologyHandler(topologyService)
 	networkHandler := handlers.NewNetworkHandler(networkService, logService)
+	chainTableHandler := handlers.NewChainTableHandler(tableService, networkService, ruleService, logService)
 
 	// 创建Gin路由器
 	r := gin.Default()
@@ -97,6 +98,7 @@ func main() {
 			auth.DELETE("/rules/:id", ruleHandler.DeleteRule)
 
 			auth.GET("/rules/system", ruleHandler.GetSystemRules)
+			auth.GET("/rules/compare", ruleHandler.CompareSystemAndDatabaseRules)
 			auth.POST("/rules/sync", ruleHandler.SyncSystemRules)
 
 			// 统计信息
@@ -124,6 +126,10 @@ func main() {
 			auth.GET("/bridges/:name/rules", networkHandler.GetBridgeRules)
 			auth.GET("/network/connections", networkHandler.GetNetworkConnections)
 			auth.GET("/network/routes", networkHandler.GetRouteTable)
+
+			// 五链四表可视化
+			auth.GET("/chain-table-data", chainTableHandler.GetChainTableData)
+			auth.GET("/network/interfaces/:name/rules", chainTableHandler.GetInterfaceRuleStats)
 
 			// 测试规则（模拟）
 			auth.POST("/test-rule", func(c *gin.Context) {

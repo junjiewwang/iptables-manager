@@ -175,6 +175,29 @@ func (h *RuleHandler) GetSystemRules(c *gin.Context) {
 	c.JSON(http.StatusOK, rules)
 }
 
+// CompareSystemAndDatabaseRules 比对系统规则和数据库规则
+func (h *RuleHandler) CompareSystemAndDatabaseRules(c *gin.Context) {
+	log.Println("[DEBUG] CompareSystemAndDatabaseRules API called")
+
+	isConsistent, err := h.ruleService.CompareSystemAndDatabaseRules()
+	if err != nil {
+		log.Printf("[ERROR] Failed to compare rules: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "比对规则失败"})
+		return
+	}
+
+	log.Printf("[DEBUG] Rules comparison result: consistent=%v", isConsistent)
+	c.JSON(http.StatusOK, gin.H{
+		"consistent": isConsistent,
+		"message": func() string {
+			if isConsistent {
+				return "系统规则与数据库规则一致"
+			}
+			return "系统规则与数据库规则不一致"
+		}(),
+	})
+}
+
 // SyncSystemRules 同步系统规则到数据库
 func (h *RuleHandler) SyncSystemRules(c *gin.Context) {
 	log.Println("[DEBUG] SyncSystemRules API called")

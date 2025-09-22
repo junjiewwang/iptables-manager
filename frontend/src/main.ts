@@ -6,22 +6,22 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { createPinia } from 'pinia'
 
 import App from './App.vue'
-import Dashboard from './views/Dashboard.vue'
-import Rules from './views/Rules.vue'
+
 import Tables from './views/Tables.vue'
 import Topology from './views/Topology.vue'
 import Interfaces from './views/Interfaces.vue'
 import Logs from './views/Logs.vue'
 import Login from './views/Login.vue'
+import ChainTableView from './views/ChainTableView.vue'
 
 const routes = [
   { path: '/login', component: Login },
-  { path: '/', redirect: '/dashboard' },
-  { path: '/dashboard', component: Dashboard },
-  { path: '/rules', component: Rules },
+  { path: '/', redirect: '/chain-table-view' },
+
   { path: '/tables', component: Tables },
   { path: '/topology', component: Topology },
   { path: '/interfaces', component: Interfaces },
+  { path: '/chain-table-view', component: ChainTableView },
   { path: '/logs', component: Logs }
 ]
 

@@ -15,14 +15,6 @@
           text-color="#bfcbd9"
           active-text-color="#409EFF"
         >
-          <el-menu-item index="/dashboard">
-            <el-icon><Odometer /></el-icon>
-            <span>仪表盘</span>
-          </el-menu-item>
-          <el-menu-item index="/rules">
-            <el-icon><List /></el-icon>
-            <span>规则管理</span>
-          </el-menu-item>
           <el-menu-item index="/tables">
             <el-icon><Grid /></el-icon>
             <span>表管理</span>
@@ -30,6 +22,10 @@
           <el-menu-item index="/topology">
             <el-icon><Share /></el-icon>
             <span>拓扑图</span>
+          </el-menu-item>
+          <el-menu-item index="/chain-table-view">
+            <el-icon><Grid /></el-icon>
+            <span>五链四表</span>
           </el-menu-item>
           <el-menu-item index="/interfaces">
             <el-icon><Connection /></el-icon>
@@ -80,10 +76,9 @@ const userStore = useUserStore()
 
 const getPageTitle = () => {
   const titles: Record<string, string> = {
-    '/dashboard': '仪表盘',
-    '/rules': '规则管理',
     '/tables': '表管理',
     '/topology': '拓扑图',
+    '/chain-table-view': '五链四表可视化',
     '/interfaces': '网络接口',
     '/logs': '操作日志'
   }

@@ -100,7 +100,7 @@ const handleLogin = async () => {
         const success = await userStore.login(loginForm)
         if (success) {
           ElMessage.success('登录成功')
-          router.push('/dashboard')
+        router.push('/chain-table-view')
         } else {
           ElMessage.error('用户名或密码错误')
         }

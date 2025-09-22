@@ -179,6 +179,48 @@ func (s *RuleService) parseIPTablesOutput(output, tableName string) ([]models.IP
 	return rules, nil
 }
 
+// CompareSystemAndDatabaseRules 比对系统规则和数据库规则
+func (s *RuleService) CompareSystemAndDatabaseRules() (bool, error) {
+	log.Println("[DEBUG] Comparing system rules with database rules")
+
+	// 获取系统规则
+	systemRules, err := s.GetSystemRules()
+	if err != nil {
+		return false, fmt.Errorf("failed to get system rules: %v", err)
+	}
+
+	// 获取数据库规则
+	dbRules, err := s.GetAllRules()
+	if err != nil {
+		return false, fmt.Errorf("failed to get database rules: %v", err)
+	}
+
+	// 比较规则数量
+	if len(systemRules) != len(dbRules) {
+		log.Printf("[DEBUG] Rule count mismatch: system=%d, database=%d", len(systemRules), len(dbRules))
+		return false, nil
+	}
+
+	// 创建系统规则的映射，用于快速查找
+	systemRuleMap := make(map[string]bool)
+	for _, rule := range systemRules {
+		key := fmt.Sprintf("%s-%s-%s-%s-%s", rule.ChainName, rule.Target, rule.Protocol, rule.SourceIP, rule.DestinationIP)
+		systemRuleMap[key] = true
+	}
+
+	// 检查数据库规则是否都存在于系统规则中
+	for _, rule := range dbRules {
+		key := fmt.Sprintf("%s-%s-%s-%s-%s", rule.ChainName, rule.Target, rule.Protocol, rule.SourceIP, rule.DestinationIP)
+		if !systemRuleMap[key] {
+			log.Printf("[DEBUG] Database rule not found in system: %s", key)
+			return false, nil
+		}
+	}
+
+	log.Println("[DEBUG] System rules and database rules are consistent")
+	return true, nil
+}
+
 // SyncSystemRules 同步系统规则到数据库
 func (s *RuleService) SyncSystemRules() error {
 	log.Println("[DEBUG] Starting system rules synchronization")

@@ -318,6 +318,9 @@ export const rulesAPI = {
   // 获取系统规则
   getSystemRules: () => api.get<IPTablesRule[]>('/rules/system'),
   
+  // 比对系统规则和数据库规则
+  compareSystemAndDatabaseRules: () => api.get<{consistent: boolean, message: string}>('/rules/compare'),
+  
   // 同步系统规则（新增）
   syncSystemRules: () => api.post('/rules/sync'),
   
