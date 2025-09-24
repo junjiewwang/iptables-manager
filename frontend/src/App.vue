@@ -31,6 +31,10 @@
             <el-icon><Connection /></el-icon>
             <span>网络接口</span>
           </el-menu-item>
+          <el-menu-item index="/tunnel-analysis">
+            <el-icon><Link /></el-icon>
+            <span>隧道分析</span>
+          </el-menu-item>
           <el-menu-item index="/logs">
             <el-icon><Document /></el-icon>
             <span>操作日志</span>
@@ -80,6 +84,7 @@ const getPageTitle = () => {
     '/topology': '拓扑图',
     '/chain-table-view': '五链四表可视化',
     '/interfaces': '网络接口',
+    '/tunnel-analysis': '隧道接口分析',
     '/logs': '操作日志'
   }
   return titles[router.currentRoute.value.path] || '管理系统'

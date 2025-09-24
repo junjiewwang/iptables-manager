@@ -147,3 +147,76 @@ func (OperationLog) TableName() string {
 func (User) TableName() string {
 	return "users"
 }
+
+// TunnelDockerAnalysis 隧道接口与Docker网桥通信分析结果
+type TunnelDockerAnalysis struct {
+	TunnelInterface   string              `json:"tunnel_interface"`
+	DockerBridge      string              `json:"docker_bridge"`
+	ForwardRules      []IPTablesRule      `json:"forward_rules"`
+	NATRules          []IPTablesRule      `json:"nat_rules"`
+	CommunicationPath []CommunicationStep `json:"communication_path"`
+	Statistics        TunnelDockerStats   `json:"statistics"`
+	Recommendations   []string            `json:"recommendations"`
+}
+
+// CommunicationStep 通信路径中的步骤
+type CommunicationStep struct {
+	Step        int    `json:"step"`
+	Description string `json:"description"`
+	Table       string `json:"table"`
+	Chain       string `json:"chain"`
+	Action      string `json:"action"`
+	Interface   string `json:"interface,omitempty"`
+}
+
+// TunnelDockerStats 隧道与Docker通信统计
+type TunnelDockerStats struct {
+	TunnelToDockerPackets int64 `json:"tunnel_to_docker_packets"`
+	DockerToTunnelPackets int64 `json:"docker_to_tunnel_packets"`
+	TunnelToDockerBytes   int64 `json:"tunnel_to_docker_bytes"`
+	DockerToTunnelBytes   int64 `json:"docker_to_tunnel_bytes"`
+	DroppedPackets        int64 `json:"dropped_packets"`
+	ForwardedPackets      int64 `json:"forwarded_packets"`
+}
+
+// TunnelInterfaceInfo 隧道接口详细信息
+type TunnelInterfaceInfo struct {
+	NetworkInterface
+	TunnelType       string         `json:"tunnel_type"`       // tun, tap, vpn
+	PeerAddress      string         `json:"peer_address"`      // 对端地址
+	LocalAddress     string         `json:"local_address"`     // 本地地址
+	EncryptionType   string         `json:"encryption_type"`   // 加密类型
+	ConnectedBridges []string       `json:"connected_bridges"` // 连接的网桥
+	RelatedRules     []IPTablesRule `json:"related_rules"`     // 相关规则
+}
+
+// DockerBridgeInfo Docker网桥详细信息
+type DockerBridgeInfo struct {
+	NetworkInterface
+	BridgeType          string         `json:"bridge_type"`          // default_bridge, custom_bridge
+	NetworkName         string         `json:"network_name"`         // Docker网络名称
+	Subnet              string         `json:"subnet"`               // 子网
+	Gateway             string         `json:"gateway"`              // 网关
+	ConnectedContainers []string       `json:"connected_containers"` // 连接的容器
+	IsolationRules      []IPTablesRule `json:"isolation_rules"`      // 隔离规则
+}
+
+// NetworkCommunicationRule 网络通信规则
+type NetworkCommunicationRule struct {
+	ID              uint      `json:"id" gorm:"primaryKey"`
+	SourceInterface string    `json:"source_interface" gorm:"size:50;not null"`
+	TargetInterface string    `json:"target_interface" gorm:"size:50;not null"`
+	Direction       string    `json:"direction" gorm:"size:20;not null"` // inbound, outbound, bidirectional
+	Protocol        string    `json:"protocol" gorm:"size:10"`
+	SourcePort      string    `json:"source_port" gorm:"size:20"`
+	DestPort        string    `json:"dest_port" gorm:"size:20"`
+	Action          string    `json:"action" gorm:"size:20;not null"` // ACCEPT, DROP, REJECT
+	Priority        int       `json:"priority" gorm:"default:100"`
+	IsActive        bool      `json:"is_active" gorm:"default:true"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+func (NetworkCommunicationRule) TableName() string {
+	return "network_communication_rules"
+}

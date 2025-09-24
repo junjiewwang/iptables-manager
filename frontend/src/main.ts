@@ -13,6 +13,7 @@ import Interfaces from './views/Interfaces.vue'
 import Logs from './views/Logs.vue'
 import Login from './views/Login.vue'
 import ChainTableView from './views/ChainTableView.vue'
+import TunnelAnalysis from './components/TunnelAnalysis.vue'
 
 const routes = [
   { path: '/login', component: Login },
@@ -22,6 +23,7 @@ const routes = [
   { path: '/topology', component: Topology },
   { path: '/interfaces', component: Interfaces },
   { path: '/chain-table-view', component: ChainTableView },
+  { path: '/tunnel-analysis', component: TunnelAnalysis },
   { path: '/logs', component: Logs }
 ]
 

@@ -176,6 +176,542 @@ func (s *NetworkService) getInterfaceStats(name string) (models.InterfaceStats, 
 	return stats, nil
 }
 
+// GetTunnelInterfaceRules 获取与隧道接口相关的iptables规则
+func (s *NetworkService) GetTunnelInterfaceRules(interfaceName string) ([]models.IPTablesRule, error) {
+	log.Printf("[DEBUG] NetworkService.GetTunnelInterfaceRules called for interface: %s", interfaceName)
+
+	var rules []models.IPTablesRule
+	tables := []string{"raw", "mangle", "nat", "filter"}
+
+	for _, tableName := range tables {
+		cmd := exec.Command("iptables", "-t", tableName, "-L", "-n", "-v", "--line-numbers")
+		output, err := cmd.Output()
+		if err != nil {
+			log.Printf("[WARN] Failed to get rules from table %s: %v", tableName, err)
+			continue
+		}
+
+		tableRules := s.parseTunnelRules(string(output), tableName, interfaceName)
+		rules = append(rules, tableRules...)
+	}
+
+	log.Printf("[DEBUG] Found %d rules related to interface %s", len(rules), interfaceName)
+	return rules, nil
+}
+
+// parseTunnelRules 解析与隧道接口相关的规则
+func (s *NetworkService) parseTunnelRules(output, tableName, interfaceName string) []models.IPTablesRule {
+	var rules []models.IPTablesRule
+	lines := strings.Split(output, "\n")
+
+	var currentChain string
+	chainRegex := regexp.MustCompile(`^Chain\s+(\S+)\s+\(policy\s+(\S+).*\)`)
+	ruleRegex := regexp.MustCompile(`^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*(.*)`)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// 检查链头部
+		if chainMatch := chainRegex.FindStringSubmatch(line); chainMatch != nil {
+			currentChain = chainMatch[1]
+			continue
+		}
+
+		// 检查规则行是否包含指定接口
+		if ruleMatch := ruleRegex.FindStringSubmatch(line); ruleMatch != nil && currentChain != "" {
+			if strings.Contains(line, interfaceName) {
+				lineNum, _ := strconv.Atoi(ruleMatch[1])
+				packets, _ := strconv.ParseInt(ruleMatch[2], 10, 64)
+				bytes, _ := strconv.ParseInt(ruleMatch[3], 10, 64)
+				target := ruleMatch[4]
+				protocol := ruleMatch[5]
+				opt := ruleMatch[6]
+				inInterface := ruleMatch[7]
+
+				remaining := strings.TrimSpace(ruleMatch[8])
+				parts := strings.Fields(remaining)
+
+				var outInterface, source, destination, extra string
+				if len(parts) > 0 {
+					outInterface = parts[0]
+				}
+				if len(parts) > 1 {
+					source = parts[1]
+				}
+				if len(parts) > 2 {
+					destination = parts[2]
+				}
+				if len(parts) > 3 {
+					extra = strings.Join(parts[3:], " ")
+				}
+
+				rule := models.IPTablesRule{
+					Table:        tableName,
+					ChainName:    currentChain,
+					LineNumber:   lineNum,
+					Target:       target,
+					Protocol:     protocol,
+					Source:       source,
+					Destination:  destination,
+					InInterface:  inInterface,
+					OutInterface: outInterface,
+					Options:      opt,
+					Extra:        extra,
+					Packets:      packets,
+					Bytes:        bytes,
+				}
+
+				rules = append(rules, rule)
+			}
+		}
+	}
+
+	return rules
+}
+
+// AnalyzeTunnelDockerCommunication 分析隧道接口与Docker网桥间的通信路径
+func (s *NetworkService) AnalyzeTunnelDockerCommunication(tunnelInterface, dockerBridge string) (*models.TunnelDockerAnalysis, error) {
+	log.Printf("[DEBUG] Analyzing communication between tunnel %s and docker bridge %s", tunnelInterface, dockerBridge)
+
+	analysis := &models.TunnelDockerAnalysis{
+		TunnelInterface: tunnelInterface,
+		DockerBridge:    dockerBridge,
+	}
+
+	// 获取FORWARD链规则
+	forwardRules, err := s.getForwardRules(tunnelInterface, dockerBridge)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get forward rules: %v", err)
+	}
+	analysis.ForwardRules = forwardRules
+
+	// 获取NAT规则
+	natRules, err := s.getNATRules(tunnelInterface, dockerBridge)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get NAT rules: %v", err)
+	}
+	analysis.NATRules = natRules
+
+	// 生成通信路径
+	analysis.CommunicationPath = s.generateCommunicationPath(tunnelInterface, dockerBridge)
+
+	// 计算统计信息
+	analysis.Statistics = s.calculateTunnelDockerStats(forwardRules, natRules)
+
+	// 生成建议
+	analysis.Recommendations = s.generateRecommendations(analysis)
+
+	return analysis, nil
+}
+
+// getForwardRules 获取FORWARD链中相关的规则
+func (s *NetworkService) getForwardRules(tunnelInterface, dockerBridge string) ([]models.IPTablesRule, error) {
+	cmd := exec.Command("iptables", "-t", "filter", "-L", "FORWARD", "-n", "-v", "--line-numbers")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var rules []models.IPTablesRule
+	lines := strings.Split(string(output), "\n")
+	ruleRegex := regexp.MustCompile(`^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*(.*)`)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if ruleMatch := ruleRegex.FindStringSubmatch(line); ruleMatch != nil {
+			// 检查规则是否涉及指定的接口
+			if strings.Contains(line, tunnelInterface) || strings.Contains(line, dockerBridge) {
+				lineNum, _ := strconv.Atoi(ruleMatch[1])
+				packets, _ := strconv.ParseInt(ruleMatch[2], 10, 64)
+				bytes, _ := strconv.ParseInt(ruleMatch[3], 10, 64)
+				target := ruleMatch[4]
+				protocol := ruleMatch[5]
+				opt := ruleMatch[6]
+				inInterface := ruleMatch[7]
+
+				remaining := strings.TrimSpace(ruleMatch[8])
+				parts := strings.Fields(remaining)
+
+				var outInterface, source, destination, extra string
+				if len(parts) > 0 {
+					outInterface = parts[0]
+				}
+				if len(parts) > 1 {
+					source = parts[1]
+				}
+				if len(parts) > 2 {
+					destination = parts[2]
+				}
+				if len(parts) > 3 {
+					extra = strings.Join(parts[3:], " ")
+				}
+
+				rule := models.IPTablesRule{
+					Table:        "filter",
+					ChainName:    "FORWARD",
+					LineNumber:   lineNum,
+					Target:       target,
+					Protocol:     protocol,
+					Source:       source,
+					Destination:  destination,
+					InInterface:  inInterface,
+					OutInterface: outInterface,
+					Options:      opt,
+					Extra:        extra,
+					Packets:      packets,
+					Bytes:        bytes,
+				}
+
+				rules = append(rules, rule)
+			}
+		}
+	}
+
+	return rules, nil
+}
+
+// getNATRules 获取NAT表中相关的规则
+func (s *NetworkService) getNATRules(tunnelInterface, dockerBridge string) ([]models.IPTablesRule, error) {
+	var allRules []models.IPTablesRule
+	chains := []string{"PREROUTING", "POSTROUTING", "OUTPUT"}
+
+	for _, chain := range chains {
+		cmd := exec.Command("iptables", "-t", "nat", "-L", chain, "-n", "-v", "--line-numbers")
+		output, err := cmd.Output()
+		if err != nil {
+			log.Printf("[WARN] Failed to get NAT rules from chain %s: %v", chain, err)
+			continue
+		}
+
+		chainRules := s.parseNATChainRules(string(output), chain, tunnelInterface, dockerBridge)
+		allRules = append(allRules, chainRules...)
+	}
+
+	return allRules, nil
+}
+
+// parseNATChainRules 解析NAT链中的规则
+func (s *NetworkService) parseNATChainRules(output, chain, tunnelInterface, dockerBridge string) []models.IPTablesRule {
+	var rules []models.IPTablesRule
+	lines := strings.Split(output, "\n")
+	ruleRegex := regexp.MustCompile(`^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*(.*)`)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if ruleMatch := ruleRegex.FindStringSubmatch(line); ruleMatch != nil {
+			// 检查规则是否涉及指定的接口
+			if strings.Contains(line, tunnelInterface) || strings.Contains(line, dockerBridge) {
+				lineNum, _ := strconv.Atoi(ruleMatch[1])
+				packets, _ := strconv.ParseInt(ruleMatch[2], 10, 64)
+				bytes, _ := strconv.ParseInt(ruleMatch[3], 10, 64)
+				target := ruleMatch[4]
+				protocol := ruleMatch[5]
+				opt := ruleMatch[6]
+				inInterface := ruleMatch[7]
+
+				remaining := strings.TrimSpace(ruleMatch[8])
+				parts := strings.Fields(remaining)
+
+				var outInterface, source, destination, extra string
+				if len(parts) > 0 {
+					outInterface = parts[0]
+				}
+				if len(parts) > 1 {
+					source = parts[1]
+				}
+				if len(parts) > 2 {
+					destination = parts[2]
+				}
+				if len(parts) > 3 {
+					extra = strings.Join(parts[3:], " ")
+				}
+
+				rule := models.IPTablesRule{
+					Table:        "nat",
+					ChainName:    chain,
+					LineNumber:   lineNum,
+					Target:       target,
+					Protocol:     protocol,
+					Source:       source,
+					Destination:  destination,
+					InInterface:  inInterface,
+					OutInterface: outInterface,
+					Options:      opt,
+					Extra:        extra,
+					Packets:      packets,
+					Bytes:        bytes,
+				}
+
+				rules = append(rules, rule)
+			}
+		}
+	}
+
+	return rules
+}
+
+// generateCommunicationPath 生成通信路径
+func (s *NetworkService) generateCommunicationPath(tunnelInterface, dockerBridge string) []models.CommunicationStep {
+	return []models.CommunicationStep{
+		{
+			Step:        1,
+			Description: fmt.Sprintf("数据包从%s接口进入", tunnelInterface),
+			Table:       "raw",
+			Chain:       "PREROUTING",
+			Action:      "连接跟踪初始化",
+			Interface:   tunnelInterface,
+		},
+		{
+			Step:        2,
+			Description: "包标记和修改处理",
+			Table:       "mangle",
+			Chain:       "PREROUTING",
+			Action:      "包处理",
+		},
+		{
+			Step:        3,
+			Description: "DNAT规则检查",
+			Table:       "nat",
+			Chain:       "PREROUTING",
+			Action:      "地址转换",
+			Interface:   tunnelInterface,
+		},
+		{
+			Step:        4,
+			Description: "路由决策",
+			Table:       "routing",
+			Chain:       "ROUTING_DECISION",
+			Action:      "路由查找",
+		},
+		{
+			Step:        5,
+			Description: "转发前包处理",
+			Table:       "mangle",
+			Chain:       "FORWARD",
+			Action:      "包修改",
+		},
+		{
+			Step:        6,
+			Description: fmt.Sprintf("转发规则检查 (%s -> %s)", tunnelInterface, dockerBridge),
+			Table:       "filter",
+			Chain:       "FORWARD",
+			Action:      "过滤决策",
+			Interface:   fmt.Sprintf("%s->%s", tunnelInterface, dockerBridge),
+		},
+		{
+			Step:        7,
+			Description: "转发后包处理",
+			Table:       "mangle",
+			Chain:       "POSTROUTING",
+			Action:      "包修改",
+		},
+		{
+			Step:        8,
+			Description: "SNAT/MASQUERADE规则处理",
+			Table:       "nat",
+			Chain:       "POSTROUTING",
+			Action:      "源地址转换",
+			Interface:   dockerBridge,
+		},
+		{
+			Step:        9,
+			Description: fmt.Sprintf("数据包通过%s发送到目标", dockerBridge),
+			Table:       "output",
+			Chain:       "OUTPUT",
+			Action:      "包发送",
+			Interface:   dockerBridge,
+		},
+	}
+}
+
+// calculateTunnelDockerStats 计算统计信息
+func (s *NetworkService) calculateTunnelDockerStats(forwardRules, natRules []models.IPTablesRule) models.TunnelDockerStats {
+	var stats models.TunnelDockerStats
+
+	// 计算转发规则的包和字节统计
+	for _, rule := range forwardRules {
+		if strings.Contains(rule.InInterface, "tun") || strings.Contains(rule.InInterface, "tap") {
+			stats.TunnelToDockerPackets += rule.Packets
+			stats.TunnelToDockerBytes += rule.Bytes
+		}
+		if strings.Contains(rule.OutInterface, "tun") || strings.Contains(rule.OutInterface, "tap") {
+			stats.DockerToTunnelPackets += rule.Packets
+			stats.DockerToTunnelBytes += rule.Bytes
+		}
+		if rule.Target == "ACCEPT" {
+			stats.ForwardedPackets += rule.Packets
+		} else if rule.Target == "DROP" || rule.Target == "REJECT" {
+			stats.DroppedPackets += rule.Packets
+		}
+	}
+
+	return stats
+}
+
+// generateRecommendations 生成优化建议
+func (s *NetworkService) generateRecommendations(analysis *models.TunnelDockerAnalysis) []string {
+	var recommendations []string
+
+	// 检查是否有基本的转发规则
+	hasForwardRule := false
+	for _, rule := range analysis.ForwardRules {
+		if rule.Target == "ACCEPT" {
+			hasForwardRule = true
+			break
+		}
+	}
+
+	if !hasForwardRule {
+		recommendations = append(recommendations,
+			fmt.Sprintf("建议添加允许%s到%s的转发规则: iptables -A FORWARD -i %s -o %s -j ACCEPT",
+				analysis.TunnelInterface, analysis.DockerBridge, analysis.TunnelInterface, analysis.DockerBridge))
+	}
+
+	// 检查是否有MASQUERADE规则
+	hasMasqueradeRule := false
+	for _, rule := range analysis.NATRules {
+		if rule.Target == "MASQUERADE" {
+			hasMasqueradeRule = true
+			break
+		}
+	}
+
+	if !hasMasqueradeRule {
+		recommendations = append(recommendations,
+			fmt.Sprintf("建议添加MASQUERADE规则: iptables -t nat -A POSTROUTING -o %s -j MASQUERADE",
+				analysis.TunnelInterface))
+	}
+
+	// 检查丢包率
+	if analysis.Statistics.DroppedPackets > 0 {
+		dropRate := float64(analysis.Statistics.DroppedPackets) / float64(analysis.Statistics.ForwardedPackets+analysis.Statistics.DroppedPackets) * 100
+		if dropRate > 5.0 {
+			recommendations = append(recommendations,
+				fmt.Sprintf("检测到较高的丢包率(%.2f%%)，建议检查防火墙规则配置", dropRate))
+		}
+	}
+
+	// 性能优化建议
+	if len(analysis.ForwardRules) > 20 {
+		recommendations = append(recommendations, "规则数量较多，建议优化规则顺序，将常用规则前置")
+	}
+
+	return recommendations
+}
+
+// GetTunnelInterfaceInfo 获取隧道接口详细信息
+func (s *NetworkService) GetTunnelInterfaceInfo(interfaceName string) (*models.TunnelInterfaceInfo, error) {
+	log.Printf("[DEBUG] Getting tunnel interface info for: %s", interfaceName)
+
+	// 获取基础网络接口信息
+	interfaces, err := s.GetAllInterfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	var baseInterface models.NetworkInterface
+	found := false
+	for _, iface := range interfaces {
+		if iface.Name == interfaceName {
+			baseInterface = iface
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("interface %s not found", interfaceName)
+	}
+
+	tunnelInfo := &models.TunnelInterfaceInfo{
+		NetworkInterface: baseInterface,
+	}
+
+	// 确定隧道类型
+	if strings.HasPrefix(interfaceName, "tun") {
+		tunnelInfo.TunnelType = "tun"
+	} else if strings.HasPrefix(interfaceName, "tap") {
+		tunnelInfo.TunnelType = "tap"
+	} else {
+		tunnelInfo.TunnelType = "unknown"
+	}
+
+	// 获取隧道配置信息
+	tunnelInfo.LocalAddress, tunnelInfo.PeerAddress = s.getTunnelAddresses(interfaceName)
+
+	// 获取相关规则
+	tunnelInfo.RelatedRules, _ = s.GetTunnelInterfaceRules(interfaceName)
+
+	// 获取连接的网桥
+	tunnelInfo.ConnectedBridges = s.getConnectedBridges(interfaceName)
+
+	return tunnelInfo, nil
+}
+
+// getTunnelAddresses 获取隧道地址信息
+func (s *NetworkService) getTunnelAddresses(interfaceName string) (string, string) {
+	cmd := exec.Command("ip", "addr", "show", interfaceName)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", ""
+	}
+
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "inet ") && strings.Contains(line, "peer") {
+			// 解析 "inet 192.168.252.1 peer 192.168.252.2/32" 格式
+			parts := strings.Fields(line)
+			for i, part := range parts {
+				if part == "inet" && i+1 < len(parts) {
+					localAddr := parts[i+1]
+					if i+3 < len(parts) && parts[i+2] == "peer" {
+						peerAddr := strings.Split(parts[i+3], "/")[0]
+						return localAddr, peerAddr
+					}
+				}
+			}
+		}
+	}
+
+	return "", ""
+}
+
+// getConnectedBridges 获取连接的网桥列表
+func (s *NetworkService) getConnectedBridges(interfaceName string) []string {
+	var bridges []string
+
+	// 通过iptables规则分析连接的网桥
+	rules, err := s.GetTunnelInterfaceRules(interfaceName)
+	if err != nil {
+		return bridges
+	}
+
+	bridgeSet := make(map[string]bool)
+	for _, rule := range rules {
+		if rule.InInterface != interfaceName && strings.HasPrefix(rule.InInterface, "docker") {
+			bridgeSet[rule.InInterface] = true
+		}
+		if rule.OutInterface != interfaceName && strings.HasPrefix(rule.OutInterface, "docker") {
+			bridgeSet[rule.OutInterface] = true
+		}
+		if rule.InInterface != interfaceName && strings.HasPrefix(rule.InInterface, "br-") {
+			bridgeSet[rule.InInterface] = true
+		}
+		if rule.OutInterface != interfaceName && strings.HasPrefix(rule.OutInterface, "br-") {
+			bridgeSet[rule.OutInterface] = true
+		}
+	}
+
+	for bridge := range bridgeSet {
+		bridges = append(bridges, bridge)
+	}
+
+	return bridges
+}
+
 // GetDockerBridges 获取Docker网桥信息（使用系统原生命令）
 func (s *NetworkService) GetDockerBridges() ([]models.DockerBridge, error) {
 	log.Println("[DEBUG] NetworkService.GetDockerBridges called")

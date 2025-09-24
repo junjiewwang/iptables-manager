@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"iptables-management-backend/config"
+	"iptables-management-backend/controllers"
 	"iptables-management-backend/handlers"
 	"iptables-management-backend/middleware"
 	"iptables-management-backend/services"
@@ -47,6 +48,7 @@ func main() {
 	topologyHandler := handlers.NewTopologyHandler(topologyService)
 	networkHandler := handlers.NewNetworkHandler(networkService, logService)
 	chainTableHandler := handlers.NewChainTableHandler(tableService, networkService, ruleService, logService)
+	tunnelController := controllers.NewTunnelController()
 
 	// 创建Gin路由器
 	r := gin.Default()
@@ -130,6 +132,15 @@ func main() {
 			// 五链四表可视化
 			auth.GET("/chain-table-data", chainTableHandler.GetChainTableData)
 			auth.GET("/network/interfaces/:name/rules", chainTableHandler.GetInterfaceRuleStats)
+
+			// 隧道接口分析
+			auth.GET("/tunnel/interfaces", tunnelController.GetTunnelInterfaces)
+			auth.GET("/tunnel/docker-bridges", tunnelController.GetDockerBridges)
+			auth.GET("/tunnel/:interface_name/rules", tunnelController.GetTunnelInterfaceRules)
+			auth.GET("/tunnel/:interface_name/info", tunnelController.GetTunnelInterfaceInfo)
+			auth.GET("/tunnel/:interface_name/statistics", tunnelController.GetTunnelStatistics)
+			auth.GET("/tunnel/analyze-communication", tunnelController.AnalyzeTunnelDockerCommunication)
+			auth.POST("/tunnel/generate-rules", tunnelController.GenerateTunnelDockerRules)
 
 			// 测试规则（模拟）
 			auth.POST("/test-rule", func(c *gin.Context) {
