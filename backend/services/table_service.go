@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -31,15 +32,17 @@ type ChainInfo struct {
 
 // RuleInfo 规则信息结构
 type RuleInfo struct {
-	LineNumber  string `json:"line_number"`
-	Packets     string `json:"packets"`
-	Bytes       string `json:"bytes"`
-	Target      string `json:"target"`
-	Protocol    string `json:"protocol"`
-	Options     string `json:"options"`
-	Source      string `json:"source"`
-	Destination string `json:"destination"`
-	RuleText    string `json:"rule_text"`
+	LineNumber   int    `json:"line_number"`   // 规则行号
+	Packets      uint64 `json:"packets"`       // 匹配包数
+	Bytes        string `json:"bytes"`         // 匹配字节数(含单位如K/M/G)
+	Target       string `json:"target"`        // 目标动作
+	Protocol     string `json:"protocol"`      // 协议类型
+	Options      string `json:"options"`       // 特殊选项
+	InInterface  string `json:"in_interface"`  // 入站接口
+	OutInterface string `json:"out_interface"` // 出站接口
+	Source       string `json:"source"`        // 源地址
+	Destination  string `json:"destination"`   // 目标地址
+	RuleText     string `json:"rule_text"`     // 完整规则文本
 }
 
 // GetAllTables 获取所有表的信息
@@ -66,7 +69,7 @@ func (s *TableService) GetTableInfo(tableName string) (*TableInfo, error) {
 	log.Printf("[DEBUG] Getting table info for: %s", tableName)
 
 	// 执行 iptables -t <table> -L -n --line-numbers 命令
-	cmd := exec.Command("iptables", "-t", tableName, "-L", "-n", "--line-numbers")
+	cmd := exec.Command("iptables", "-t", tableName, "-L", "-n", "--line-numbers", "-v")
 	output, err := cmd.Output()
 	if err != nil {
 		log.Printf("[ERROR] Failed to execute iptables command for table %s: %v", tableName, err)
@@ -137,22 +140,26 @@ func (s *TableService) parseTableOutput(output string) []ChainInfo {
 
 				// 提取策略信息
 				if strings.Contains(line, "policy") {
-					for i, part := range parts {
-						if part == "policy" && i+1 < len(parts) {
-							policy = parts[i+1]
-							break
+					start := strings.Index(line, "policy")
+					if start != -1 {
+						rest := line[start+6:]
+						rest = strings.TrimSpace(rest)
+						policyEnd := strings.Index(rest, " ")
+						if policyEnd != -1 {
+							policy = rest[:policyEnd]
 						}
 					}
 				}
 
 				// 提取包和字节数
 				if strings.Contains(line, "packets") {
-					for i, part := range parts {
-						if part == "packets," && i-1 >= 0 {
-							packets = parts[i-1]
+					fields := strings.Fields(line)
+					for i, field := range fields {
+						if field == "packets," && i > 0 {
+							packets = fields[i-1]
 						}
-						if part == "bytes)" && i-1 >= 0 {
-							bytes = parts[i-1]
+						if field == "bytes)" && i > 0 {
+							bytes = fields[i-1]
 						}
 					}
 				}
@@ -168,13 +175,13 @@ func (s *TableService) parseTableOutput(output string) []ChainInfo {
 			continue
 		}
 
-		// 跳过表头
-		if strings.Contains(line, "target") && strings.Contains(line, "prot") {
+		// 跳过表头行 (num pkts bytes target prot opt in out source destination)
+		if strings.Contains(line, "num") && strings.Contains(line, "pkts") && strings.Contains(line, "bytes") {
 			continue
 		}
 
 		// 解析规则行
-		if currentChain != nil && len(strings.Fields(line)) >= 3 {
+		if currentChain != nil {
 			rule := s.parseRuleLine(line)
 			if rule != nil {
 				currentChain.Rules = append(currentChain.Rules, *rule)
@@ -193,33 +200,45 @@ func (s *TableService) parseTableOutput(output string) []ChainInfo {
 // parseRuleLine 解析规则行
 func (s *TableService) parseRuleLine(line string) *RuleInfo {
 	fields := strings.Fields(line)
-	if len(fields) < 3 {
+	if len(fields) < 10 { // 至少需要10个字段: num, pkts, bytes, target, prot, opt, in, out, source, destination
 		return nil
 	}
 
-	rule := &RuleInfo{
-		RuleText: line,
+	// 解析行号
+	lineNumber, err := strconv.Atoi(fields[0])
+	if err != nil {
+		log.Printf("[WARN] Failed to parse line number: %v", err)
+		return nil
 	}
 
-	// 如果第一个字段是数字，说明有行号
-	if len(fields) >= 6 {
-		rule.LineNumber = fields[0]
-		rule.Target = fields[1]
-		rule.Protocol = fields[2]
-		rule.Options = fields[3]
-		rule.Source = fields[4]
-		rule.Destination = fields[5]
+	// 解析包数
+	packets, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		log.Printf("[WARN] Failed to parse packets count: %v", err)
+		packets = 0
+	}
 
-		// 剩余部分作为选项
-		if len(fields) > 6 {
-			rule.Options = strings.Join(fields[6:], " ")
-		}
-	} else {
-		rule.Target = fields[0]
-		rule.Protocol = fields[1]
-		rule.Source = fields[2]
-		if len(fields) > 3 {
-			rule.Destination = fields[3]
+	rule := &RuleInfo{
+		LineNumber:   lineNumber,
+		Packets:      packets,
+		Bytes:        fields[2],
+		Target:       fields[3],
+		Protocol:     fields[4],
+		Options:      fields[5],
+		InInterface:  fields[6],
+		OutInterface: fields[7],
+		Source:       fields[8],
+		Destination:  fields[9],
+		RuleText:     line,
+	}
+
+	// 如果有额外的选项参数（如ctstate等），合并到Options中
+	if len(fields) > 10 {
+		extraOptions := strings.Join(fields[10:], " ")
+		if rule.Options != "--" {
+			rule.Options = rule.Options + " " + extraOptions
+		} else {
+			rule.Options = extraOptions
 		}
 	}
 
@@ -300,14 +319,24 @@ func (s *TableService) parseVerboseRuleLine(line string) *RuleInfo {
 		return nil
 	}
 
+	// 解析包数
+	packets, err := strconv.ParseUint(fields[0], 10, 64)
+	if err != nil {
+		log.Printf("[WARN] Failed to parse packets count in verbose mode: %v", err)
+		packets = 0
+	}
+
 	rule := &RuleInfo{
-		Packets:  fields[0],
-		Bytes:    fields[1],
-		Target:   fields[2],
-		Protocol: fields[3],
-		Options:  fields[4],
-		Source:   fields[5],
-		RuleText: line,
+		LineNumber:   0, // 详细模式下没有行号
+		Packets:      packets,
+		Bytes:        fields[1],
+		Target:       fields[2],
+		Protocol:     fields[3],
+		Options:      fields[4],
+		InInterface:  "",
+		OutInterface: "",
+		Source:       fields[5],
+		RuleText:     line,
 	}
 
 	if len(fields) > 6 {

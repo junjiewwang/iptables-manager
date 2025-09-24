@@ -9,30 +9,146 @@
     <!-- 控制面板 -->
     <div class="control-panel">
       <el-card>
-        <div class="controls">
-          <el-select v-model="selectedInterface" placeholder="选择网络接口" @change="handleInterfaceChange" clearable>
-            <el-option label="全部接口" value="" />
-            <el-option
-              v-for="iface in interfaces"
-              :key="iface.name"
-              :label="`${iface.name} (${iface.ip_addresses.join(', ')})`"
-              :value="iface.name"
-            />
-          </el-select>
+        <!-- 主要控制区 -->
+        <div class="main-controls">
+          <div class="view-tabs">
+            <el-tabs v-model="viewMode" @tab-change="handleViewModeChange" type="card">
+              <el-tab-pane label="链视图" name="chain">
+                <template #label>
+                  <el-icon><Share /></el-icon>
+                  链视图
+                </template>
+              </el-tab-pane>
+              <el-tab-pane label="表视图" name="table">
+                <template #label>
+                  <el-icon><Grid /></el-icon>
+                  表视图
+                </template>
+              </el-tab-pane>
+              <el-tab-pane label="接口视图" name="interface">
+                <template #label>
+                  <el-icon><Connection /></el-icon>
+                  接口视图
+                </template>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
           
-          <el-select v-model="viewMode" @change="handleViewModeChange">
-            <el-option label="链视图" value="chain" />
-            <el-option label="表视图" value="table" />
-            <el-option label="接口视图" value="interface" />
-          </el-select>
-          
-          <el-button @click="refreshData" :loading="loading" type="primary">
-            <el-icon><Refresh /></el-icon>
-            刷新数据
-          </el-button>
-          
-
+          <div class="action-buttons">
+            <el-button @click="refreshData" :loading="loading" type="primary">
+              <el-icon><Refresh /></el-icon>
+              刷新数据
+            </el-button>
+          </div>
         </div>
+
+        <!-- 筛选工具栏 -->
+        <el-collapse v-model="activeFilterPanels" class="filter-panel">
+          <el-collapse-item title="筛选条件" name="filters">
+            <template #title>
+              <div class="filter-title">
+                <el-icon><Filter /></el-icon>
+                <span>筛选条件</span>
+                <el-badge :value="activeFiltersCount" :hidden="activeFiltersCount === 0" type="primary" />
+              </div>
+            </template>
+            
+            <div class="filter-content">
+              <!-- 快捷筛选标签 -->
+              <div class="quick-filters">
+                <div class="filter-group">
+                  <label class="filter-label">网络接口:</label>
+                  <div class="filter-tags">
+                    <el-tag
+                      v-for="iface in interfaces"
+                      :key="iface.name"
+                      :type="selectedInterfaces.includes(iface.name) ? 'primary' : 'info'"
+                      :effect="selectedInterfaces.includes(iface.name) ? 'dark' : 'plain'"
+                      @click="toggleInterface(iface.name)"
+                      class="filter-tag"
+                    >
+                      {{ iface.name }}
+                    </el-tag>
+                  </div>
+                </div>
+
+                <div class="filter-group">
+                  <label class="filter-label">协议类型:</label>
+                  <div class="filter-tags">
+                    <el-tag
+                      v-for="protocol in availableProtocols"
+                      :key="protocol"
+                      :type="selectedProtocols.includes(protocol) ? 'success' : 'info'"
+                      :effect="selectedProtocols.includes(protocol) ? 'dark' : 'plain'"
+                      @click="toggleProtocol(protocol)"
+                      class="filter-tag"
+                    >
+                      {{ protocol.toUpperCase() }}
+                    </el-tag>
+                  </div>
+                </div>
+
+                <div class="filter-group">
+                  <label class="filter-label">目标动作:</label>
+                  <div class="filter-tags">
+                    <el-tag
+                      v-for="target in availableTargets"
+                      :key="target"
+                      :type="getTargetTagType(target)"
+                      :effect="selectedTargets.includes(target) ? 'dark' : 'plain'"
+                      @click="toggleTarget(target)"
+                      class="filter-tag"
+                    >
+                      {{ target }}
+                    </el-tag>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 高级筛选 -->
+              <div class="advanced-filters">
+                <el-row :gutter="16">
+                  <el-col :span="8">
+                    <el-input
+                      v-model="ipRangeFilter"
+                      placeholder="IP地址范围 (如: 192.168.1.0/24)"
+                      clearable
+                      size="small"
+                    >
+                      <template #prefix>
+                        <el-icon><Location /></el-icon>
+                      </template>
+                    </el-input>
+                  </el-col>
+                  <el-col :span="8">
+                    <el-input
+                      v-model="portRangeFilter"
+                      placeholder="端口范围 (如: 80,443,8000-9000)"
+                      clearable
+                      size="small"
+                    >
+                      <template #prefix>
+                        <el-icon><Connection /></el-icon>
+                      </template>
+                    </el-input>
+                  </el-col>
+                  <el-col :span="8">
+                    <div class="filter-actions">
+                      <el-button size="small" @click="clearAllFilters">
+                        <el-icon><Delete /></el-icon>
+                        清空筛选
+                      </el-button>
+                      <el-button size="small" type="primary" @click="applyFilters">
+                        <el-icon><Search /></el-icon>
+                        应用筛选
+                      </el-button>
+                    </div>
+                  </el-col>
+                </el-row>
+              </div>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
       </el-card>
     </div>
 
@@ -41,244 +157,491 @@
       <el-skeleton :rows="8" animated />
     </div>
 
-
-
     <!-- 主要内容区域 -->
     <div class="main-content">
-      <!-- 数据流图视图 -->
+      <!-- Vue Flow 数据流图视图 -->
       <div v-if="viewMode === 'chain'" class="dataflow-view">
-        <!-- 上层协议栈 -->
-        <div class="protocol-stack">
-          <div class="protocol-box">
-            <span>上层协议栈</span>
-          </div>
-        </div>
-        
-        <!-- 虚线分隔 -->
-        <div class="dashed-line"></div>
-        
-        <!-- 主要数据流 -->
-        <div class="main-flow">
-          <!-- 数据包入口 -->
-          <div class="flow-start">
-            <div class="flow-node start-node">
-              <span>数据包入口</span>
-            </div>
-          </div>
-          
-          <!-- PREROUTING 链 -->
-          <div class="chain-section prerouting">
-            <div class="chain-box" @click="selectChain('PREROUTING')">
-              <div class="chain-title">PREROUTING</div>
-              <div class="chain-tables">
-                <div class="table-tag raw" @click.stop="selectChainTable('PREROUTING', 'raw')">raw</div>
-                <div class="table-tag mangle" @click.stop="selectChainTable('PREROUTING', 'mangle')">mangle</div>
-                <div class="table-tag nat" @click.stop="selectChainTable('PREROUTING', 'nat')">nat</div>
-              </div>
-              <div class="rule-count">{{ getChainRuleCount('PREROUTING') }} 规则</div>
-            </div>
-          </div>
-          
-          <!-- 路由决策点 -->
-          <div class="routing-decision">
-            <div class="decision-diamond">
-              <span>路由决策</span>
-            </div>
-          </div>
-          
-          <!-- 分流：本机设备 vs 非本机设备 -->
-          <div class="flow-split">
-            <!-- 本机设备路径 -->
-            <div class="local-path">
-              <div class="path-label">本机设备</div>
-              
-              <!-- INPUT 链 -->
-              <div class="chain-section input">
-                <div class="chain-box" @click="selectChain('INPUT')">
-                  <div class="chain-title">INPUT</div>
-                  <div class="chain-tables">
-                    <div class="table-tag mangle" @click.stop="selectChainTable('INPUT', 'mangle')">mangle</div>
-                    <div class="table-tag nat" @click.stop="selectChainTable('INPUT', 'nat')">nat</div>
-                    <div class="table-tag filter" @click.stop="selectChainTable('INPUT', 'filter')">filter</div>
-                  </div>
-                  <div class="rule-count">{{ getChainRuleCount('INPUT') }} 规则</div>
-                </div>
-              </div>
-              
-              <!-- 本地进程 -->
-              <div class="local-process">
-                <div class="process-box">
-                  <span>本地进程</span>
-                </div>
-              </div>
-              
-              <!-- OUTPUT 链 -->
-              <div class="chain-section output">
-                <div class="chain-box" @click="selectChain('OUTPUT')">
-                  <div class="chain-title">OUTPUT</div>
-                  <div class="chain-tables">
-                    <div class="table-tag raw" @click.stop="selectChainTable('OUTPUT', 'raw')">raw</div>
-                    <div class="table-tag mangle" @click.stop="selectChainTable('OUTPUT', 'mangle')">mangle</div>
-                    <div class="table-tag nat" @click.stop="selectChainTable('OUTPUT', 'nat')">nat</div>
-                    <div class="table-tag filter" @click.stop="selectChainTable('OUTPUT', 'filter')">filter</div>
-                  </div>
-                  <div class="rule-count">{{ getChainRuleCount('OUTPUT') }} 规则</div>
-                </div>
-              </div>
-            </div>
+        <div class="vue-flow-wrapper">
+          <VueFlow
+            v-model="flowElements"
+            class="dataflow-diagram"
+            :default-viewport="{ zoom: 0.8 }"
+            :min-zoom="0.5"
+            :max-zoom="2"
+            :snap-to-grid="true"
+            :snap-grid="[20, 20]"
+            @node-click="onNodeClick"
+            @edge-click="onEdgeClick"
+          >
+            <!-- 背景 -->
+            <Background pattern-color="#e2e8f0" :gap="20" />
             
-            <!-- 非本机设备路径 -->
-            <div class="forward-path">
-              <div class="path-label">非本机设备</div>
-              <div class="path-sublabel">ip_forward=1</div>
-              
-              <!-- FORWARD 链 -->
-              <div class="chain-section forward">
-                <div class="chain-box" @click="selectChain('FORWARD')">
-                  <div class="chain-title">FORWARD</div>
-                  <div class="chain-tables">
-                    <div class="table-tag mangle" @click.stop="selectChainTable('FORWARD', 'mangle')">mangle</div>
-                    <div class="table-tag filter" @click.stop="selectChainTable('FORWARD', 'filter')">filter</div>
-                  </div>
-                  <div class="rule-count">{{ getChainRuleCount('FORWARD') }} 规则</div>
+            <!-- 控制面板 -->
+            <Controls />
+            
+            <!-- 自定义节点模板 -->
+            <template #node-chain="{ data }">
+              <div class="chain-node" :class="data.chainType">
+                <div class="chain-header">
+                  <h3 class="chain-title">{{ data.label }}</h3>
+                </div>
+                <div class="chain-tables">
+                  <span 
+                    v-for="table in data.tables" 
+                    :key="table"
+                    class="table-tag"
+                    :class="table"
+                    @click.stop="selectChainTable(data.chainName, table)"
+                  >
+                    {{ table }}
+                  </span>
+                </div>
+                <div class="chain-stats">{{ data.ruleCount }} 规则</div>
+              </div>
+            </template>
+            
+            <template #node-decision="{ data }">
+              <div class="decision-node">
+                <div class="decision-content">
+                  {{ data.label }}
                 </div>
               </div>
-              
-              <!-- 路由决策点2 -->
-              <div class="routing-decision">
-                <div class="decision-diamond">
-                  <span>输出路由选择</span>
-                  <div class="decision-sublabel">根据路由表选择</div>
+            </template>
+            
+            <template #node-endpoint="{ data }">
+              <div class="endpoint-node" :class="data.type">
+                <div class="endpoint-content">
+                  {{ data.label }}
                 </div>
               </div>
-            </div>
-          </div>
-          
-          <!-- POSTROUTING 链 -->
-          <div class="chain-section postrouting">
-            <div class="chain-box" @click="selectChain('POSTROUTING')">
-              <div class="chain-title">POSTROUTING</div>
-              <div class="chain-tables">
-                <div class="table-tag mangle" @click.stop="selectChainTable('POSTROUTING', 'mangle')">mangle</div>
-                <div class="table-tag nat" @click.stop="selectChainTable('POSTROUTING', 'nat')">nat</div>
+            </template>
+            
+            <template #node-process="{ data }">
+              <div class="process-node">
+                <div class="process-content">
+                  {{ data.label }}
+                </div>
               </div>
-              <div class="rule-count">{{ getChainRuleCount('POSTROUTING') }} 规则</div>
-            </div>
-          </div>
-          
-          <!-- 数据包出口 -->
-          <div class="flow-end">
-            <div class="flow-node end-node">
-              <span>数据包出口</span>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 流向箭头 -->
-        <div class="flow-arrows">
-          <!-- 这里会通过CSS添加箭头 -->
+            </template>
+
+            <template #node-protocol="{ data }">
+              <div class="protocol-node">
+                <div class="protocol-content">
+                  {{ data.label }}
+                </div>
+              </div>
+            </template>
+          </VueFlow>
         </div>
       </div>
 
-      <!-- 表视图 -->
-      <div v-if="viewMode === 'table'" class="table-view">
-        <div class="tables-grid">
-          <div
-            v-for="table in tables"
-            :key="table.name"
-            class="table-card"
-            :class="table.name"
-          >
-            <el-card>
-              <template #header>
-                <div class="table-header">
-                  <h3>{{ table.name.toUpperCase() }} 表</h3>
-                  <el-tag>{{ table.totalRules }} 规则</el-tag>
-                </div>
-              </template>
-              
-              <div class="table-chains">
-                <div
-                  v-for="chain in table.chains"
-                  :key="chain.name"
-                  class="chain-in-table"
-                  @click="selectChainInTable(table.name, chain.name)"
-                >
-                  <div class="chain-name">{{ chain.name }}</div>
-                  <div class="chain-rules-count">{{ (chain.rules || []).length }}</div>
-                  <div class="chain-policy" v-if="chain.policy">
-                    策略: {{ chain.policy }}
+      <!-- 表视图 - 卡片式布局 -->
+      <div v-else-if="viewMode === 'table'" class="table-view">
+        <div class="rules-cards-container">
+          <div class="rules-grid">
+            <div
+              v-for="rule in filteredTableRules"
+              :key="`${rule.table}-${rule.chain_name}-${rule.line_number}`"
+              class="rule-card"
+            >
+              <el-card shadow="hover" class="rule-card-content">
+                <!-- 卡片头部 -->
+                <template #header>
+                  <div class="rule-card-header">
+                    <div class="rule-info">
+                      <div class="rule-number">
+                        <el-icon><Document /></el-icon>
+                        #{{ rule.line_number }}
+                      </div>
+                      <div class="rule-stats">
+                        <el-tag size="small" type="info">{{ rule.packets || 0 }} 包</el-tag>
+                        <el-tag size="small" type="warning">{{ rule.bytes || '0B' }}</el-tag>
+                      </div>
+                    </div>
+                    <div class="rule-actions">
+                      <el-button type="primary" size="small" circle @click="editRuleFromDetail(rule)">
+                        <el-icon><Edit /></el-icon>
+                      </el-button>
+                      <el-button type="danger" size="small" circle @click="deleteRuleFromDetail(rule)">
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- 卡片主要内容 -->
+                <div class="rule-card-body">
+                  <!-- 链和表信息 -->
+                  <div class="rule-chain-table">
+                    <el-tag :type="getChainTagType(rule.chain_name)" size="small">
+                      {{ rule.chain_name }}
+                    </el-tag>
+                    <el-icon><ArrowRight /></el-icon>
+                    <el-tag :type="getTableTagType(rule.table)" size="small">
+                      {{ rule.table?.toUpperCase() }}
+                    </el-tag>
+                  </div>
+
+                  <!-- 目标动作 -->
+                  <div class="rule-target">
+                    <label>目标:</label>
+                    <el-tag :type="getTargetTagType(rule.target)" size="medium">
+                      {{ rule.target || '-' }}
+                    </el-tag>
+                  </div>
+
+                  <!-- 网络信息 -->
+                  <div class="rule-network">
+                    <div class="network-item">
+                      <label>协议:</label>
+                      <span class="network-value">{{ rule.protocol || 'all' }}</span>
+                    </div>
+                    <div class="network-item">
+                      <label>源地址:</label>
+                      <span class="network-value" :title="rule.source">
+                        {{ rule.source || '0.0.0.0/0' }}
+                      </span>
+                    </div>
+                    <div class="network-item">
+                      <label>目标地址:</label>
+                      <span class="network-value" :title="rule.destination">
+                        {{ rule.destination || '0.0.0.0/0' }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- 接口信息 -->
+                  <div class="rule-interfaces" v-if="rule.in_interface || rule.out_interface">
+                    <div class="interface-item" v-if="rule.in_interface && rule.in_interface !== '-'">
+                      <el-icon><Download /></el-icon>
+                      <el-tag type="info" size="small">{{ rule.in_interface }}</el-tag>
+                    </div>
+                    <div class="interface-arrow" v-if="rule.in_interface && rule.out_interface && rule.in_interface !== '-' && rule.out_interface !== '-'">
+                      <el-icon><ArrowRight /></el-icon>
+                    </div>
+                    <div class="interface-item" v-if="rule.out_interface && rule.out_interface !== '-'">
+                      <el-icon><Upload /></el-icon>
+                      <el-tag type="warning" size="small">{{ rule.out_interface }}</el-tag>
+                    </div>
+                  </div>
+
+                  <!-- 其他选项 -->
+                  <div class="rule-options" v-if="rule.options">
+                    <label>选项:</label>
+                    <span class="options-text">{{ rule.options }}</span>
                   </div>
                 </div>
-              </div>
-            </el-card>
+              </el-card>
+            </div>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-if="filteredTableRules.length === 0" class="empty-state">
+            <el-empty description="没有找到匹配的规则">
+              <el-button type="primary" @click="clearAllFilters">清空筛选条件</el-button>
+            </el-empty>
           </div>
         </div>
       </div>
 
       <!-- 接口视图 -->
-      <div v-if="viewMode === 'interface'" class="interface-view">
-        <div class="interfaces-container">
-          <div
-            v-for="iface in interfaceData"
-            :key="iface.name"
-            class="interface-card"
-          >
-            <el-card>
-              <template #header>
-                <div class="interface-header">
-                  <h3>{{ iface.name }}</h3>
-                  <div class="interface-info">
-                    <el-tag :type="iface.is_up ? 'success' : 'danger'">
-                      {{ iface.is_up ? '启用' : '禁用' }}
-                    </el-tag>
-                    <el-tag v-if="iface.is_docker" type="info">Docker</el-tag>
+      <div v-else-if="viewMode === 'interface'" class="interface-view">
+        <!-- 统计信息面板 -->
+        <div class="stats-panel">
+          <el-row :gutter="16">
+            <el-col :span="6">
+              <el-card class="stats-card">
+                <div class="stats-content">
+                  <div class="stats-icon">
+                    <el-icon><Connection /></el-icon>
+                  </div>
+                  <div class="stats-info">
+                    <div class="stats-number">{{ filteredInterfaceData.length }}</div>
+                    <div class="stats-label">网络接口</div>
                   </div>
                 </div>
-              </template>
-              
-              <div class="interface-content">
-                <div class="interface-details">
-                  <p><strong>IP地址:</strong> {{ iface.ip_addresses.join(', ') || '无' }}</p>
-                  <p><strong>MAC地址:</strong> {{ iface.mac_address || '无' }}</p>
-                  <p><strong>类型:</strong> {{ iface.type }}</p>
-                </div>
-                
-                <div class="interface-rules">
-                  <h4>相关规则统计</h4>
-                  <div class="rules-stats">
-                    <div class="stat-item">
-                      <span class="stat-label">输入规则:</span>
-                      <span class="stat-value">{{ iface.inRules }}</span>
-                    </div>
-                    <div class="stat-item">
-                      <span class="stat-label">输出规则:</span>
-                      <span class="stat-value">{{ iface.outRules }}</span>
-                    </div>
-                    <div class="stat-item">
-                      <span class="stat-label">转发规则:</span>
-                      <span class="stat-value">{{ iface.forwardRules }}</span>
-                    </div>
+              </el-card>
+            </el-col>
+            <el-col :span="6">
+              <el-card class="stats-card">
+                <div class="stats-content">
+                  <div class="stats-icon active">
+                    <el-icon><Check /></el-icon>
                   </div>
+                  <div class="stats-info">
+                    <div class="stats-number">{{ activeInterfacesCount }}</div>
+                    <div class="stats-label">活跃接口</div>
+                  </div>
+                </div>
+              </el-card>
+            </el-col>
+            <el-col :span="6">
+              <el-card class="stats-card">
+                <div class="stats-content">
+                  <div class="stats-icon docker">
+                    <el-icon><Box /></el-icon>
+                  </div>
+                  <div class="stats-info">
+                    <div class="stats-number">{{ dockerInterfacesCount }}</div>
+                    <div class="stats-label">Docker接口</div>
+                  </div>
+                </div>
+              </el-card>
+            </el-col>
+            <el-col :span="6">
+              <el-card class="stats-card">
+                <div class="stats-content">
+                  <div class="stats-icon rules">
+                    <el-icon><List /></el-icon>
+                  </div>
+                  <div class="stats-info">
+                    <div class="stats-number">{{ totalInterfaceRules }}</div>
+                    <div class="stats-label">关联规则</div>
+                  </div>
+                </div>
+              </el-card>
+            </el-col>
+          </el-row>
+        </div>
+
+        <!-- 接口筛选面板 -->
+        <div class="interface-filters">
+          <el-card>
+            <div class="filter-content">
+              <div class="filter-group">
+                <label class="filter-label">接口类型:</label>
+                <div class="filter-tags">
+                  <el-tag
+                    v-for="type in availableInterfaceTypes"
+                    :key="type"
+                    :type="selectedInterfaceTypes.includes(type) ? 'primary' : 'info'"
+                    :effect="selectedInterfaceTypes.includes(type) ? 'dark' : 'plain'"
+                    @click="toggleInterfaceType(type)"
+                    class="filter-tag"
+                  >
+                    {{ type.toUpperCase() }}
+                  </el-tag>
                 </div>
               </div>
-            </el-card>
+
+              <div class="filter-group">
+                <label class="filter-label">接口状态:</label>
+                <div class="filter-tags">
+                  <el-tag
+                    :type="interfaceStatusFilter === 'up' ? 'success' : 'info'"
+                    :effect="interfaceStatusFilter === 'up' ? 'dark' : 'plain'"
+                    @click="toggleInterfaceStatus('up')"
+                    class="filter-tag"
+                  >
+                    启用
+                  </el-tag>
+                  <el-tag
+                    :type="interfaceStatusFilter === 'down' ? 'danger' : 'info'"
+                    :effect="interfaceStatusFilter === 'down' ? 'dark' : 'plain'"
+                    @click="toggleInterfaceStatus('down')"
+                    class="filter-tag"
+                  >
+                    禁用
+                  </el-tag>
+                  <el-tag
+                    :type="interfaceStatusFilter === 'docker' ? 'warning' : 'info'"
+                    :effect="interfaceStatusFilter === 'docker' ? 'dark' : 'plain'"
+                    @click="toggleInterfaceStatus('docker')"
+                    class="filter-tag"
+                  >
+                    Docker
+                  </el-tag>
+                </div>
+              </div>
+
+              <div class="filter-actions">
+                <el-button size="small" @click="clearInterfaceFilters">
+                  <el-icon><Delete /></el-icon>
+                  清空筛选
+                </el-button>
+              </div>
+            </div>
+          </el-card>
+        </div>
+
+        <!-- 接口卡片列表 -->
+        <div class="interfaces-container">
+          <div class="interfaces-grid">
+            <div
+              v-for="iface in filteredInterfaceData"
+              :key="iface.name"
+              class="interface-card"
+            >
+              <el-card class="interface-card-content" :class="{ 'docker-interface': iface.is_docker }">
+                <template #header>
+                  <div class="interface-header">
+                    <div class="interface-title">
+                      <el-icon class="interface-icon">
+                        <Connection v-if="iface.type === 'ethernet'" />
+                        <Box v-else-if="iface.is_docker" />
+                        <Monitor v-else />
+                      </el-icon>
+                      <h3>{{ iface.name }}</h3>
+                    </div>
+                    <div class="interface-badges">
+                      <el-tag :type="iface.is_up ? 'success' : 'danger'" size="small">
+                        {{ iface.is_up ? '启用' : '禁用' }}
+                      </el-tag>
+                      <el-tag v-if="iface.is_docker" type="warning" size="small">
+                        {{ iface.docker_type || 'Docker' }}
+                      </el-tag>
+                    </div>
+                  </div>
+                </template>
+                
+                <div class="interface-content">
+                  <!-- 基本信息 -->
+                  <div class="interface-basic-info">
+                    <div class="info-row">
+                      <span class="info-label">类型:</span>
+                      <span class="info-value">{{ iface.type }}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">状态:</span>
+                      <span class="info-value">{{ iface.state }}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">MTU:</span>
+                      <span class="info-value">{{ iface.mtu }}</span>
+                    </div>
+                  </div>
+
+                  <!-- 网络信息 -->
+                  <div class="interface-network-info">
+                    <div class="network-section">
+                      <h4>网络地址</h4>
+                      <div class="address-list">
+                        <el-tag
+                          v-for="ip in iface.ip_addresses"
+                          :key="ip"
+                          type="info"
+                          size="small"
+                          class="address-tag"
+                        >
+                          {{ ip }}
+                        </el-tag>
+                        <span v-if="!iface.ip_addresses || iface.ip_addresses.length === 0" class="no-address">
+                          无IP地址
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div class="network-section" v-if="iface.mac_address">
+                      <h4>MAC地址</h4>
+                      <code class="mac-address">{{ iface.mac_address }}</code>
+                    </div>
+                  </div>
+
+                  <!-- 规则统计 -->
+                  <div class="interface-rules-stats">
+                    <div class="stats-header">
+                      <h4>规则统计</h4>
+                      <el-tag v-if="hasActiveFilters" type="info" size="small">已筛选</el-tag>
+                    </div>
+                    <div class="rules-grid">
+                      <div class="rule-stat-item">
+                        <div class="rule-stat-icon input">
+                          <el-icon><Download /></el-icon>
+                        </div>
+                        <div class="rule-stat-info">
+                          <div class="rule-stat-number">{{ getInterfaceRuleCount(iface.name, 'in') }}</div>
+                          <div class="rule-stat-label">输入规则</div>
+                        </div>
+                      </div>
+                      <div class="rule-stat-item">
+                        <div class="rule-stat-icon output">
+                          <el-icon><Upload /></el-icon>
+                        </div>
+                        <div class="rule-stat-info">
+                          <div class="rule-stat-number">{{ getInterfaceRuleCount(iface.name, 'out') }}</div>
+                          <div class="rule-stat-label">输出规则</div>
+                        </div>
+                      </div>
+                      <div class="rule-stat-item">
+                        <div class="rule-stat-icon forward">
+                          <el-icon><Share /></el-icon>
+                        </div>
+                        <div class="rule-stat-info">
+                          <div class="rule-stat-number">{{ getInterfaceRuleCount(iface.name, 'forward') }}</div>
+                          <div class="rule-stat-label">转发规则</div>
+                        </div>
+                      </div>
+                      <div class="rule-stat-item total">
+                        <div class="rule-stat-icon total">
+                          <el-icon><List /></el-icon>
+                        </div>
+                        <div class="rule-stat-info">
+                          <div class="rule-stat-number">{{ 
+                            getInterfaceRuleCount(iface.name, 'in') + 
+                            getInterfaceRuleCount(iface.name, 'out') + 
+                            getInterfaceRuleCount(iface.name, 'forward') 
+                          }}</div>
+                          <div class="rule-stat-label">总计</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 流量统计 -->
+                  <div class="interface-traffic-stats" v-if="iface.statistics">
+                    <h4>流量统计</h4>
+                    <div class="traffic-grid">
+                      <div class="traffic-item">
+                        <span class="traffic-label">接收:</span>
+                        <span class="traffic-value">
+                          {{ formatBytes(iface.statistics.rx_bytes) }}
+                          ({{ iface.statistics.rx_packets }} 包)
+                        </span>
+                      </div>
+                      <div class="traffic-item">
+                        <span class="traffic-label">发送:</span>
+                        <span class="traffic-value">
+                          {{ formatBytes(iface.statistics.tx_bytes) }}
+                          ({{ iface.statistics.tx_packets }} 包)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 操作按钮 -->
+                  <div class="interface-actions">
+                    <el-button size="small" @click="viewInterfaceRules(iface.name)">
+                      <el-icon><View /></el-icon>
+                      查看规则
+                    </el-button>
+                  </div>
+                </div>
+              </el-card>
+            </div>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-if="filteredInterfaceData.length === 0" class="empty-state">
+            <el-empty description="没有找到匹配的网络接口">
+              <el-button type="primary" @click="clearInterfaceFilters">清空筛选条件</el-button>
+            </el-empty>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 详细信息弹窗 -->
+    <!-- 链详情对话框 -->
     <el-dialog
-      v-model="showDetailDialog"
-      :title="detailTitle"
-      width="95%"
-      :before-close="closeDetailDialog"
+      v-model="showChainDialog"
+      :title="`${selectedChain} 链详细规则`"
+      width="90%"
+      top="5vh"
+      :close-on-click-modal="false"
     >
-      <div class="detail-content">
+      <div class="chain-detail-content">
         <!-- 控制面板 -->
-        <div class="detail-controls">
-          <div class="detail-left-controls">
+        <div class="chain-detail-controls">
+          <div class="chain-detail-left-controls">
             <el-switch
               v-model="groupByChain"
               active-text="按链名分组"
@@ -312,8 +675,8 @@
               <el-option label="RETURN" value="RETURN" />
             </el-select>
           </div>
-          <div class="detail-right-controls">
-            <el-button type="primary" size="small" @click="showAddRuleDialog">
+          <div class="chain-detail-right-controls">
+            <el-button type="primary" size="small" @click="showAddRuleDialog = true">
               <el-icon><Plus /></el-icon>
               添加规则
             </el-button>
@@ -454,12 +817,12 @@
       </div>
     </el-dialog>
 
-    <!-- 添加/编辑规则对话框 -->
+    <!-- 添加规则对话框 -->
     <el-dialog
-      v-model="ruleDialogVisible"
-      :title="isEditRule ? '编辑规则' : '添加规则'"
-      width="700px"
-      @close="resetRuleForm"
+      v-model="showAddRuleDialog"
+      title="添加规则"
+      width="800px"
+      :close-on-click-modal="false"
     >
       <el-form
         ref="ruleFormRef"
@@ -599,7 +962,7 @@
       
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="ruleDialogVisible = false">取消</el-button>
+          <el-button @click="showAddRuleDialog = false">取消</el-button>
           <el-button type="primary" @click="submitRuleForm" :loading="rulesLoading">确定</el-button>
         </div>
       </template>
@@ -608,21 +971,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, reactive } from 'vue'
+import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
-import { Refresh, Right, Setting, Plus, Monitor, Search, Edit, Delete } from '@element-plus/icons-vue'
-import { getChainTableData, getNetworkInterfaces } from '../api/chainTable'
-import { apiService } from '@/api'
+import { 
+  Refresh, Plus, Edit, Delete, Search, Filter, Share, Grid, Connection, 
+  Location, ArrowRight, Document, Download, Upload, Check, Box, List, Monitor, View
+} from '@element-plus/icons-vue'
+import { VueFlow } from '@vue-flow/core'
+import { Background } from '@vue-flow/background'
+import { Controls } from '@vue-flow/controls'
+import { MarkerType } from '@vue-flow/core'
+import type { Node, Edge, Elements } from '@vue-flow/core'
+import '@vue-flow/core/dist/style.css'
+import '@vue-flow/core/dist/theme-default.css'
+import { apiService, networkAPI, tablesAPI } from '@/api'
 
 // 响应式数据
 const loading = ref(false)
 const selectedInterface = ref('')
 const viewMode = ref('chain')
 const selectedChain = ref('')
-const showDetailDialog = ref(false)
+const showChainDialog = ref(false)
+const showAddRuleDialog = ref(false)
 const detailTitle = ref('')
 const detailRules = ref([])
 const groupByChain = ref(true)
+
+// 筛选相关数据
+const activeFilterPanels = ref(['filters'])
+const selectedInterfaces = ref<string[]>([])
+const selectedProtocols = ref<string[]>([])
+const selectedTargets = ref<string[]>([])
+const ipRangeFilter = ref('')
+const portRangeFilter = ref('')
+
+// 接口视图筛选数据
+const selectedInterfaceTypes = ref<string[]>([])
+const interfaceStatusFilter = ref('')
+
+// 可用选项
+const availableProtocols = ref(['tcp', 'udp', 'icmp', 'all'])
+const availableTargets = ref(['ACCEPT', 'DROP', 'REJECT', 'RETURN', 'MASQUERADE', 'SNAT', 'DNAT'])
+const availableInterfaceTypes = ref(['ethernet', 'bridge', 'loopback', 'tunnel'])
 
 // 规则管理相关状态
 const rulesLoading = ref(false)
@@ -683,27 +1073,69 @@ const availableTables = computed(() => {
 
 // 数据
 const interfaces = ref([])
+const flowElements = ref<Elements>([])
 
 // 获取链的规则数量
 const getChainRuleCount = (chainName: string) => {
-  const chain = chains.value.find(c => c.name === chainName)
-  return chain ? (chain.rules || []).length : 0
+  if (!chainTableData.value || !chainTableData.value.chains) {
+    console.log(`获取${chainName}规则数量失败: 数据未加载`)
+    return 0
+  }
+  
+  const chain = chains.value.find((c: any) => c.name === chainName)
+  const count = chain ? (chain.rules || []).length : 0
+  
+  console.log(`${chainName}链规则数量:`, count, '链数据:', chain)
+  return count
+}
+
+// 获取筛选后的链规则数量
+const getFilteredChainRuleCount = (chainName: string): number => {
+  // 从筛选后的表规则中统计指定链的规则数量
+  const filteredCount = filteredTableRules.value.filter((rule: any) => rule.chain_name === chainName).length
+  console.log(`${chainName}链筛选后规则数量:`, filteredCount)
+  return filteredCount
 }
 
 // 选择链和表
 const selectChainTable = (chainName: string, tableName: string) => {
+  console.log('选择链和表:', { chainName, tableName })
   selectedChain.value = chainName
-  showDetailDialog.value = true
+  showChainDialog.value = true
   detailTitle.value = `${chainName} - ${tableName.toUpperCase()} 表详细规则`
   
   // 获取特定链和表的规则
   const chain = chains.value.find(c => c.name === chainName)
+  console.log('找到的链:', chain)
+  
   if (chain) {
-    const table = chain.tables?.find(t => t.name === tableName)
-    detailRules.value = table ? (table.rules || []) : []
+    // 从链的rules数组中筛选出指定表的规则
+    const chainRules = chain.rules || []
+    const filteredRules = chainRules.filter(rule => rule.table === tableName)
+    
+    console.log('链的所有规则:', chainRules)
+    console.log('筛选后的规则:', filteredRules)
+    
+    // 为规则添加更多详细信息
+    detailRules.value = filteredRules.map((rule, index) => ({
+      ...rule,
+      line_number: rule.line_number || (index + 1).toString(),
+      chain_name: rule.chain_name || chainName,
+      table: rule.table || tableName,
+      target: rule.target || extractTarget(rule.rule_text || ''),
+      source: rule.source || '-',
+      destination: rule.destination || '-',
+      protocol: rule.protocol || extractProtocol(rule.rule_text || ''),
+      in_interface: rule.in_interface || '-',
+      out_interface: rule.out_interface || '-',
+      options: rule.options || rule.rule_text || ''
+    }))
   } else {
+    console.log('未找到指定链')
     detailRules.value = []
   }
+  
+  console.log('最终设置的规则数据:', detailRules.value)
 }
 
 // 处理链变化
@@ -714,6 +1146,29 @@ const handleChainChange = () => {
   if (ruleForm.table && !availableTables.value.includes(ruleForm.table)) {
     ruleForm.table = ''
   }
+}
+
+// 辅助函数：从规则文本中提取目标
+const extractTarget = (ruleText: string): string => {
+  const targetMatch = ruleText.match(/-j\s+(\w+)/)
+  if (targetMatch) return targetMatch[1]
+  
+  // 检查常见的目标关键词
+  if (ruleText.includes('ACCEPT')) return 'ACCEPT'
+  if (ruleText.includes('DROP')) return 'DROP'
+  if (ruleText.includes('REJECT')) return 'REJECT'
+  if (ruleText.includes('RETURN')) return 'RETURN'
+  if (ruleText.includes('MASQUERADE')) return 'MASQUERADE'
+  if (ruleText.includes('SNAT')) return 'SNAT'
+  if (ruleText.includes('DNAT')) return 'DNAT'
+  
+  return '-'
+}
+
+// 辅助函数：从规则文本中提取协议
+const extractProtocol = (ruleText: string): string => {
+  const protocolMatch = ruleText.match(/-p\s+(\w+)/)
+  return protocolMatch ? protocolMatch[1] : 'all'
 }
 const chainTableData = ref({
   chains: [],
@@ -753,16 +1208,154 @@ const groupedRules = computed(() => {
     groups[chainName].push(rule)
   })
   
-  // 对每个分组内的规则按行号排序
-  Object.keys(groups).forEach(chainName => {
-    groups[chainName].sort((a: any, b: any) => {
-      const lineA = parseInt(a.line_number || '0', 10)
-      const lineB = parseInt(b.line_number || '0', 10)
-      return lineA - lineB
-    })
-  })
+// 对每个分组内的规则按行号排序
+      Object.keys(groups).forEach((chainName: string) => {
+        groups[chainName].sort((a: any, b: any) => {
+          const lineA = parseInt(a.line_number || '0', 10)
+          const lineB = parseInt(b.line_number || '0', 10)
+          return lineA - lineB
+        })
+      })
   
   return groups
+})
+
+// 筛选相关计算属性
+const activeFiltersCount = computed(() => {
+  let count = 0
+  if (selectedInterfaces.value.length > 0) count++
+  if (selectedProtocols.value.length > 0) count++
+  if (selectedTargets.value.length > 0) count++
+  if (ipRangeFilter.value) count++
+  if (portRangeFilter.value) count++
+  return count
+})
+
+const hasActiveFilters = computed(() => {
+  return activeFiltersCount.value > 0
+})
+
+// 表视图筛选规则
+const filteredTableRules = computed(() => {
+  let allRules: any[] = []
+  
+  // 收集所有表中的所有规则
+  tables.value.forEach((table: any) => {
+    if (table.chains && Array.isArray(table.chains)) {
+      table.chains.forEach((chain: any) => {
+        if (chain.rules && Array.isArray(chain.rules)) {
+          chain.rules.forEach((rule: any) => {
+            allRules.push({
+              ...rule,
+              table: table.name,
+              chain_name: chain.name,
+              line_number: rule.line_number || allRules.length + 1
+            })
+          })
+        }
+      })
+    }
+  })
+  
+  // 应用筛选条件
+  let filtered = allRules
+  
+  // 按接口筛选
+  if (selectedInterfaces.value.length > 0) {
+    filtered = filtered.filter((rule: any) => 
+      selectedInterfaces.value.includes(rule.in_interface) ||
+      selectedInterfaces.value.includes(rule.out_interface)
+    )
+  }
+  
+  // 按协议筛选
+  if (selectedProtocols.value.length > 0) {
+    filtered = filtered.filter((rule: any) => 
+      selectedProtocols.value.includes(rule.protocol?.toLowerCase())
+    )
+  }
+  
+  // 按目标动作筛选
+  if (selectedTargets.value.length > 0) {
+    filtered = filtered.filter((rule: any) => 
+      selectedTargets.value.includes(rule.target)
+    )
+  }
+  
+  // 按IP范围筛选
+  if (ipRangeFilter.value) {
+    const ipPattern = ipRangeFilter.value.toLowerCase()
+    filtered = filtered.filter((rule: any) => 
+      rule.source?.toLowerCase().includes(ipPattern) ||
+      rule.destination?.toLowerCase().includes(ipPattern)
+    )
+  }
+  
+  // 按端口范围筛选
+  if (portRangeFilter.value) {
+    const portPattern = portRangeFilter.value.toLowerCase()
+    filtered = filtered.filter((rule: any) => 
+      rule.options?.toLowerCase().includes(portPattern)
+    )
+  }
+  
+  return filtered.sort((a: any, b: any) => {
+    const lineA = parseInt(a.line_number || '0', 10)
+    const lineB = parseInt(b.line_number || '0', 10)
+    return lineA - lineB
+  })
+})
+
+// 接口视图相关计算属性
+const filteredInterfaceData = computed(() => {
+  let filtered = [...interfaceData.value]
+  
+  // 按接口类型筛选
+  if (selectedInterfaceTypes.value.length > 0) {
+    filtered = filtered.filter((iface: any) => 
+      selectedInterfaceTypes.value.includes(iface.type)
+    )
+  }
+  
+  // 按接口状态筛选
+  if (interfaceStatusFilter.value) {
+    switch (interfaceStatusFilter.value) {
+      case 'up':
+        filtered = filtered.filter((iface: any) => iface.is_up)
+        break
+      case 'down':
+        filtered = filtered.filter((iface: any) => !iface.is_up)
+        break
+      case 'docker':
+        filtered = filtered.filter((iface: any) => iface.is_docker)
+        break
+    }
+  }
+  
+  // 应用全局筛选条件：如果设置了接口筛选，只显示被选中的接口
+  if (selectedInterfaces.value.length > 0) {
+    filtered = filtered.filter((iface: any) => 
+      selectedInterfaces.value.includes(iface.name)
+    )
+  }
+  
+  return filtered
+})
+
+const activeInterfacesCount = computed(() => {
+  return filteredInterfaceData.value.filter((iface: any) => iface.is_up).length
+})
+
+const dockerInterfacesCount = computed(() => {
+  return filteredInterfaceData.value.filter((iface: any) => iface.is_docker).length
+})
+
+const totalInterfaceRules = computed(() => {
+  return filteredInterfaceData.value.reduce((total: number, iface: any) => {
+    return total + getInterfaceRuleCount(iface.name, 'in') + 
+           getInterfaceRuleCount(iface.name, 'out') + 
+           getInterfaceRuleCount(iface.name, 'forward')
+  }, 0)
 })
 
 // 规则管理相关计算属性
@@ -777,6 +1370,47 @@ const filteredDetailRules = computed(() => {
   // 按目标筛选
   if (targetFilter.value) {
     filtered = filtered.filter((rule: any) => rule.target === targetFilter.value)
+  }
+  
+  // 按接口筛选
+  if (selectedInterfaces.value.length > 0) {
+    filtered = filtered.filter((rule: any) => 
+      selectedInterfaces.value.includes(rule.in_interface) ||
+      selectedInterfaces.value.includes(rule.out_interface)
+    )
+  }
+  
+  // 按协议筛选
+  if (selectedProtocols.value.length > 0) {
+    filtered = filtered.filter((rule: any) => 
+      selectedProtocols.value.includes(rule.protocol?.toLowerCase())
+    )
+  }
+  
+  // 按目标动作筛选
+  if (selectedTargets.value.length > 0) {
+    filtered = filtered.filter((rule: any) => 
+      selectedTargets.value.includes(rule.target)
+    )
+  }
+  
+  // 按IP范围筛选
+  if (ipRangeFilter.value) {
+    const ipPattern = ipRangeFilter.value.toLowerCase()
+    filtered = filtered.filter((rule: any) => 
+      rule.source?.toLowerCase().includes(ipPattern) ||
+      rule.destination?.toLowerCase().includes(ipPattern)
+    )
+  }
+  
+  // 按端口范围筛选
+  if (portRangeFilter.value) {
+    const portPattern = portRangeFilter.value.toLowerCase()
+    filtered = filtered.filter((rule: any) => 
+      rule.options?.toLowerCase().includes(portPattern) ||
+      rule.source_port?.toLowerCase().includes(portPattern) ||
+      rule.destination_port?.toLowerCase().includes(portPattern)
+    )
   }
   
   // 按搜索文本筛选
@@ -797,10 +1431,520 @@ const filteredDetailRules = computed(() => {
   return filtered
 })
 
-// 方法
+// 初始化 Vue Flow 节点和边
+const initializeFlowElements = () => {
+  console.log('开始初始化流程图元素...')
+  console.log('当前数据状态:', {
+    chainTableData: chainTableData.value,
+    hasChains: chainTableData.value?.chains?.length > 0,
+    chainsLength: chainTableData.value?.chains?.length || 0,
+    activeFilters: activeFiltersCount.value
+  })
+  
+  // 确保数据已加载
+  if (!chainTableData.value || !chainTableData.value.chains || !Array.isArray(chainTableData.value.chains)) {
+    console.log('数据尚未加载或格式异常，跳过流程图初始化')
+    console.log('chainTableData.value:', chainTableData.value)
+    return
+  }
+
+  const nodes: Node[] = [
+    // 上层协议栈
+    {
+      id: 'protocol-stack',
+      type: 'endpoint',
+      position: { x: 400, y: 50 },
+      data: { label: '上层协议栈', type: 'protocol' }
+    },
+    // 数据包入口
+    {
+      id: 'data-entry',
+      type: 'endpoint',
+      position: { x: 400, y: 150 },
+      data: { label: '数据包入口', type: 'entry' }
+    },
+    // PREROUTING 链
+    {
+      id: 'prerouting',
+      type: 'chain',
+      position: { x: 350, y: 250 },
+      data: {
+        label: 'PREROUTING',
+        chainName: 'PREROUTING',
+        chainType: 'prerouting',
+        tables: ['raw', 'mangle', 'nat'],
+        ruleCount: getFilteredChainRuleCount('PREROUTING')
+      }
+    },
+    // 路由决策
+    {
+      id: 'routing-decision',
+      type: 'decision',
+      position: { x: 400, y: 350 },
+      data: { label: '路由决策' }
+    },
+    // INPUT 链
+    {
+      id: 'input',
+      type: 'chain',
+      position: { x: 200, y: 450 },
+      data: {
+        label: 'INPUT',
+        chainName: 'INPUT',
+        chainType: 'input',
+        tables: ['mangle', 'nat', 'filter'],
+        ruleCount: getFilteredChainRuleCount('INPUT')
+      }
+    },
+    // 本地进程
+    {
+      id: 'local-process',
+      type: 'endpoint',
+      position: { x: 200, y: 550 },
+      data: { label: '本地进程', type: 'process' }
+    },
+    // OUTPUT 链
+    {
+      id: 'output',
+      type: 'chain',
+      position: { x: 200, y: 650 },
+      data: {
+        label: 'OUTPUT',
+        chainName: 'OUTPUT',
+        chainType: 'output',
+        tables: ['raw', 'mangle', 'nat', 'filter'],
+        ruleCount: getFilteredChainRuleCount('OUTPUT')
+      }
+    },
+    // FORWARD 链
+    {
+      id: 'forward',
+      type: 'chain',
+      position: { x: 600, y: 450 },
+      data: {
+        label: 'FORWARD',
+        chainName: 'FORWARD',
+        chainType: 'forward',
+        tables: ['mangle', 'filter'],
+        ruleCount: getFilteredChainRuleCount('FORWARD')
+      }
+    },
+    // 输出路由决策
+    {
+      id: 'output-routing',
+      type: 'decision',
+      position: { x: 600, y: 550 },
+      data: { label: '输出路由决策\n根据路由表查询判断' }
+    },
+    // POSTROUTING 链
+    {
+      id: 'postrouting',
+      type: 'chain',
+      position: { x: 400, y: 750 },
+      data: {
+        label: 'POSTROUTING',
+        chainName: 'POSTROUTING',
+        chainType: 'postrouting',
+        tables: ['mangle', 'nat'],
+        ruleCount: getFilteredChainRuleCount('POSTROUTING')
+      }
+    },
+    // 数据包出口
+    {
+      id: 'data-exit',
+      type: 'endpoint',
+      position: { x: 400, y: 850 },
+      data: { label: '数据包出口', type: 'exit' }
+    }
+  ]
+
+  const edges: Edge[] = [
+    // 主流程
+    { id: 'e1', source: 'protocol-stack', target: 'data-entry', type: 'smoothstep', style: { stroke: '#4A90E2', strokeWidth: 3 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4A90E2' } },
+    { id: 'e2', source: 'data-entry', target: 'prerouting', type: 'smoothstep', style: { stroke: '#4A90E2', strokeWidth: 3 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4A90E2' } },
+    { id: 'e3', source: 'prerouting', target: 'routing-decision', type: 'smoothstep', style: { stroke: '#4A90E2', strokeWidth: 3 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4A90E2' } },
+    
+    
+    // 本机设备路径
+    { id: 'e4', source: 'routing-decision', target: 'input', type: 'smoothstep', style: { stroke: '#7ED321', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#7ED321' }, label: '本机设备' },
+    { id: 'e5', source: 'input', target: 'local-process', type: 'smoothstep', style: { stroke: '#7ED321', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#7ED321' } },
+    { id: 'e6', source: 'local-process', target: 'output', type: 'smoothstep', style: { stroke: '#7ED321', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#7ED321' } },
+    { id: 'e7', source: 'output', target: 'postrouting', type: 'smoothstep', style: { stroke: '#7ED321', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#7ED321' } },
+    
+    // 转发路径
+    { id: 'e8', source: 'routing-decision', target: 'forward', type: 'smoothstep', style: { stroke: '#F5A623', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#F5A623' }, label: '非本机设备\\nip_forward=1' },
+    { id: 'e9', source: 'forward', target: 'output-routing', type: 'smoothstep', style: { stroke: '#F5A623', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#F5A623' } },
+    { id: 'e10', source: 'output-routing', target: 'postrouting', type: 'smoothstep', style: { stroke: '#F5A623', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#F5A623' } },
+    
+    // 最终出口
+    { id: 'e11', source: 'postrouting', target: 'data-exit', type: 'smoothstep', style: { stroke: '#4A90E2', strokeWidth: 3 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4A90E2' } }
+  ]
+
+  flowElements.value = [...nodes, ...edges]
+}
+
+// 节点点击事件
+const onNodeClick = (event: any) => {
+  const node = event.node
+  if (node.type === 'chain') {
+    selectChain(node.data.chainName)
+  }
+}
+
+// 边点击事件
+const onEdgeClick = (event: any) => {
+  console.log('Edge clicked:', event.edge)
+}
+
+// 选择链
+const selectChain = (chainName: string) => {
+  console.log('选择链:', chainName)
+  selectedChain.value = chainName
+  const chain = chains.value.find((c: any) => c.name === chainName)
+  console.log('找到的链数据:', chain)
+  
+  if (chain) {
+    // 检查是否有筛选条件
+    const hasFilters = selectedInterfaces.value.length > 0 || 
+                      selectedProtocols.value.length > 0 || 
+                      selectedTargets.value.length > 0 || 
+                      ipRangeFilter.value.trim() !== '' || 
+                      portRangeFilter.value.trim() !== ''
+    
+    const filterStatus = hasFilters ? ' (已筛选)' : ''
+    detailTitle.value = `${chainName} 链详细规则${filterStatus}`
+    
+    // 使用筛选后的规则数据，而不是原始的链规则数据
+    const filteredChainRules = filteredTableRules.value.filter((rule: any) => rule.chain_name === chainName)
+    console.log(`${chainName}链筛选后的规则数据:`, filteredChainRules)
+    
+    // 处理规则数据，确保格式正确
+    detailRules.value = filteredChainRules.map((rule: any, index: number) => ({
+      ...rule,
+      line_number: rule.line_number || (index + 1).toString(),
+      chain_name: rule.chain_name || chainName,
+      table: rule.table || 'filter',
+      target: rule.target || extractTarget(rule.rule_text || ''),
+      source: rule.source || '-',
+      destination: rule.destination || '-',
+      protocol: rule.protocol || extractProtocol(rule.rule_text || ''),
+      in_interface: rule.in_interface || '-',
+      out_interface: rule.out_interface || '-',
+      options: rule.options || rule.rule_text || ''
+    }))
+    
+    console.log('处理后的规则数据:', detailRules.value)
+    showChainDialog.value = true
+  } else {
+    console.log('未找到指定链')
+  }
+}
+
+// 选择链在表中
+const selectChainInTable = (tableName: string, chainName: string) => {
+  console.log('选择表中的链:', { tableName, chainName })
+  const table = tables.value.find((t: any) => t.name === tableName)
+  console.log('找到的表:', table)
+  
+  if (table) {
+    const chain = table.chains.find((c: any) => c.name === chainName)
+    console.log('找到的链:', chain)
+    
+    if (chain) {
+      detailTitle.value = `${tableName.toUpperCase()}.${chainName} 详细规则`
+      
+      // 处理规则数据，确保格式正确
+      const chainRules = chain.rules || []
+      detailRules.value = chainRules.map((rule: any, index: number) => ({
+        ...rule,
+        line_number: rule.line_number || (index + 1).toString(),
+        chain_name: rule.chain_name || chainName,
+        table: rule.table || tableName,
+        target: rule.target || extractTarget(rule.rule_text || ''),
+        source: rule.source || '-',
+        destination: rule.destination || '-',
+        protocol: rule.protocol || extractProtocol(rule.rule_text || ''),
+        in_interface: rule.in_interface || '-',
+        out_interface: rule.out_interface || '-',
+        options: rule.options || rule.rule_text || ''
+      }))
+      
+      console.log('处理后的规则数据:', detailRules.value)
+      showChainDialog.value = true
+    } else {
+      console.log('在表中未找到指定链')
+    }
+  } else {
+    console.log('未找到指定表')
+  }
+}
+
+// 关闭链详情对话框
+const closeChainDialog = () => {
+  showChainDialog.value = false
+  detailRules.value = []
+  groupByChain.value = true
+}
+
+// 调试函数：检查数据状态
+const debugDataState = () => {
+  console.log('=== 数据状态调试 ===')
+  console.log('chainTableData:', chainTableData.value)
+  console.log('chains:', chains.value)
+  console.log('tables:', tables.value)
+  console.log('detailRules:', detailRules.value)
+  console.log('showChainDialog:', showChainDialog.value)
+  console.log('selectedChain:', selectedChain.value)
+  console.log('==================')
+}
+
+// 处理分组模式变化
+const handleGroupModeChange = () => {
+  // 分组模式切换时的处理逻辑
+  console.log('分组模式切换:', groupByChain.value)
+}
+
+// 获取分组中的表名列表
+const getTablesInGroup = (rules: any[]) => {
+  const tables = new Set(rules.map(rule => rule.table).filter(Boolean))
+  return Array.from(tables)
+}
+
+// 获取表的标签类型
+const getTableTagType = (tableName: string) => {
+  const types: Record<string, string> = {
+    'raw': 'info',
+    'mangle': 'warning', 
+    'nat': 'success',
+    'filter': 'danger'
+  }
+  return types[tableName] || 'default'
+}
+
+// 获取目标的标签类型
+const getTargetTagType = (target: string) => {
+  const types: Record<string, string> = {
+    'ACCEPT': 'success',
+    'DROP': 'danger',
+    'REJECT': 'warning',
+    'RETURN': 'info',
+    'MASQUERADE': 'primary',
+    'SNAT': 'primary',
+    'DNAT': 'primary'
+  }
+  return types[target] || 'default'
+}
+
+const getChainTagType = (chainName: string) => {
+  const types: Record<string, string> = {
+    'PREROUTING': 'primary',
+    'INPUT': 'success',
+    'FORWARD': 'warning',
+    'OUTPUT': 'info',
+    'POSTROUTING': 'danger'
+  }
+  return types[chainName] || 'default'
+}
+
+// 格式化日期
+const formatDate = (dateString: string) => {
+  if (!dateString) return '-'
+  return new Date(dateString).toLocaleString('zh-CN')
+}
+
+const getInterfaceRuleCount = (interfaceName: string, direction: string) => {
+  // 使用筛选后的规则数据进行统计
+  const allRules = filteredTableRules.value
+  
+  return allRules.filter((rule: any) => {
+    if (direction === 'in') {
+      return rule.InInterface === interfaceName || rule.in_interface === interfaceName
+    } else if (direction === 'out') {
+      return rule.OutInterface === interfaceName || rule.out_interface === interfaceName
+    } else if (direction === 'forward') {
+      return rule.chain_name === 'FORWARD' && 
+             (rule.InInterface === interfaceName || rule.OutInterface === interfaceName ||
+              rule.in_interface === interfaceName || rule.out_interface === interfaceName)
+    }
+    return false
+  }).length
+}
+
+// 自动比对并同步系统规则
+const autoSyncSystemRules = async () => {
+  console.log('[DEBUG] autoSyncSystemRules called')
+  try {
+    // 先比对系统规则和数据库规则
+    const compareResult = await apiService.compareSystemAndDatabaseRules()
+    console.log('[DEBUG] Compare result:', compareResult.data)
+    
+    if (!compareResult.data.consistent) {
+      console.log('[DEBUG] Rules are inconsistent, auto syncing...')
+      // 如果不一致，自动同步
+      await apiService.syncSystemRules()
+      console.log('[DEBUG] Auto sync completed')
+      return true // 返回true表示进行了同步
+    } else {
+      console.log('[DEBUG] Rules are consistent, no sync needed')
+      return false // 返回false表示无需同步
+    }
+  } catch (error) {
+    console.error('[ERROR] Failed to auto sync system rules:', error)
+    throw error
+  }
+}
+
+// 同步系统规则 - 复用Rules.vue中的实现（保留原方法以备手动调用）
+const syncSystemRules = async () => {
+  console.log('[DEBUG] syncSystemRules called')
+  try {
+    loading.value = true
+    await apiService.syncSystemRules()
+    ElMessage.success('系统规则同步成功')
+    // 同步成功后重新加载数据
+    await loadChainTableData()
+  } catch (error) {
+    console.error('[ERROR] Failed to sync system rules:', error)
+    ElMessage.error('同步系统规则失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 规则管理相关方法
+const loadRules = async () => {
+  rulesLoading.value = true
+  try {
+    const response = await apiService.getRules()
+    rules.value = response.data
+  } catch (error) {
+    console.error('Failed to load rules:', error)
+    ElMessage.error('加载规则失败')
+  } finally {
+    rulesLoading.value = false
+  }
+}
+
+const openAddRuleDialog = (chainName?: string) => {
+  isEditRule.value = false
+  showAddRuleDialog.value = true
+  resetRuleForm()
+  
+  // 如果指定了链名，自动设置
+  if (chainName) {
+    ruleForm.chain_name = chainName
+    // 触发链变化处理
+    handleChainChange()
+  }
+}
+
+const editRule = (rule: any) => {
+  isEditRule.value = true
+  ruleDialogVisible.value = true
+  Object.assign(ruleForm, rule)
+}
+
+const deleteRule = async (rule: any) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这条规则吗？', '确认删除', {
+      type: 'warning'
+    })
+    
+    await apiService.deleteRule(rule.id!)
+    ElMessage.success('删除成功')
+    await loadRules()
+    await refreshData() // 刷新五链四表数据
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+const submitRuleForm = async () => {
+  if (!ruleFormRef.value) return
+  
+  await ruleFormRef.value.validate(async (valid) => {
+    if (valid) {
+      try {
+        if (isEditRule.value) {
+          await apiService.updateRule(ruleForm.id!, ruleForm)
+          ElMessage.success('更新成功')
+        } else {
+          await apiService.addRule(ruleForm)
+          ElMessage.success('添加成功')
+        }
+        showAddRuleDialog.value = false
+        await loadRules()
+        await refreshData() // 刷新五链四表数据
+      } catch (error) {
+        ElMessage.error(isEditRule.value ? '更新失败' : '添加失败')
+      }
+    }
+  })
+}
+
+const resetRuleForm = () => {
+  Object.assign(ruleForm, {
+    id: undefined,
+    chain_name: '',
+    target: '',
+    protocol: '',
+    source_ip: '',
+    destination_ip: '',
+    destination_port: ''
+  })
+  ruleFormRef.value?.clearValidate()
+}
+
+// 从详细规则页面编辑规则
+const editRuleFromDetail = (rule: any) => {
+  // 将详细规则数据转换为规则表单数据
+  isEditRule.value = true
+  showAddRuleDialog.value = true
+  Object.assign(ruleForm, {
+    id: rule.id,
+    chain_name: rule.chain_name || '',
+    target: rule.target || '',
+    protocol: rule.protocol || '',
+    source_ip: rule.source || '',
+    destination_ip: rule.destination || '',
+    destination_port: rule.destination_port || ''
+  })
+}
+
+// 从详细规则页面删除规则
+const deleteRuleFromDetail = async (rule: any) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这条规则吗？', '确认删除', {
+      type: 'warning'
+    })
+    
+    if (rule.id) {
+      await apiService.deleteRule(rule.id)
+      ElMessage.success('删除成功')
+      await refreshData() // 刷新所有数据
+      // 重新加载详细规则数据
+      const chain = chains.value.find((c: any) => c.name === selectedChain.value)
+      if (chain) {
+        detailRules.value = chain.rules || []
+      }
+    } else {
+      ElMessage.warning('无法删除：规则ID不存在')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+// 刷新数据
 const refreshData = async () => {
   loading.value = true
   try {
+    console.log('开始刷新数据...')
+    
     // 自动比对并同步系统规则
     const synced = await autoSyncSystemRules()
     
@@ -809,8 +1953,24 @@ const refreshData = async () => {
       loadChainTableData(),
       loadInterfaces()
     ])
-    
 
+    console.log('数据刷新完成:', {
+      chainTableData: chainTableData.value,
+      chains: chainTableData.value?.chains?.length || 0,
+      tables: chainTableData.value?.tables?.length || 0,
+      interfaces: interfaces.value?.length || 0
+    })
+    
+    // 验证数据结构
+    if (chainTableData.value && chainTableData.value.chains) {
+      console.log('链数据详情:', chainTableData.value.chains.map(chain => ({
+        name: chain.name,
+        rulesCount: chain.rules?.length || 0,
+        tablesCount: chain.tables?.length || 0
+      })))
+    } else {
+      console.warn('链数据结构异常:', chainTableData.value)
+    }
     
     // 根据是否进行了同步显示不同的消息
     if (synced) {
@@ -820,7 +1980,7 @@ const refreshData = async () => {
     }
   } catch (error) {
     console.error('刷新数据失败:', error)
-    ElMessage.error('数据刷新失败')
+    ElMessage.error('数据刷新失败: ' + (error.message || '未知错误'))
   } finally {
     loading.value = false
   }
@@ -828,12 +1988,108 @@ const refreshData = async () => {
 
 const loadChainTableData = async () => {
   try {
-    const data = await getChainTableData(selectedInterface.value)
-    chainTableData.value = data
-  } catch (error) {
+    console.log('开始加载链表数据...')
+    const response = await tablesAPI.getAllTables()
+    console.log('API响应:', response)
+    
+    if (response && response.data) {
+      // 检查数据结构：API返回的是数组格式还是对象格式
+      if (Array.isArray(response.data)) {
+        console.log('检测到数组格式数据，进行转换...')
+        // API返回的是数组格式：[{table_name: 'raw', chains: [...]}, ...]
+        const tableDataArray = response.data
+        
+        // 转换为目标格式：{chains: [...], tables: [...]}
+        const convertedData = {
+          chains: [],
+          tables: []
+        }
+        
+        // 用于去重链名
+        const chainMap = new Map()
+        
+        // 处理每个表的数据
+tableDataArray.forEach((tableItem: any) => {
+          if (tableItem && tableItem.table_name && Array.isArray(tableItem.chains)) {
+            // 添加表信息
+            convertedData.tables.push({
+              name: tableItem.table_name,
+              total_rules: tableItem.chains.reduce((total: number, chain: any) => total + (chain.rules?.length || 0), 0),
+              chains: tableItem.chains.map((chain: any) => {
+                return {
+                  name: chain.chain_name,
+                  policy: chain.policy || 'ACCEPT',
+                  rules: chain.rules || []
+                };
+              })
+            })
+            
+            // 处理链数据，合并相同链名的规则
+            tableItem.chains.forEach((chain: any) => {
+              if (chain && chain.chain_name) {
+                const chainKey = chain.chain_name
+                if (!chainMap.has(chainKey)) {
+                  chainMap.set(chainKey, {
+                    name: chain.chain_name,
+                    policy: chain.policy || 'ACCEPT',
+                    rules: [],
+                    tables: []
+                  })
+                }
+                
+                const existingChain = chainMap.get(chainKey)
+                // 添加规则
+                if (chain.rules && Array.isArray(chain.rules)) {
+                  existingChain.rules.push(...chain.rules)
+                }
+                // 添加表名
+                if (!existingChain.tables.includes(tableItem.table_name)) {
+                  existingChain.tables.push(tableItem.table_name)
+                }
+              }
+            })
+          }
+        })
+        
+// 将Map转换为数组
+        convertedData.chains = Array.from(chainMap.values())
+        
+        chainTableData.value = convertedData
+        console.log('数据转换成功:', {
+          chains: convertedData.chains.length,
+          tables: convertedData.tables.length,
+          chainNames: convertedData.chains.map((c: any) => c.name),
+          tableNames: convertedData.tables.map((t: any) => t.name)
+        })
+      } else if (response.data.chains && Array.isArray(response.data.chains)) {
+        // 已经是目标格式
+        chainTableData.value = response.data
+        console.log('链表数据加载成功:', {
+          chains: response.data.chains.length,
+          tables: response.data.tables?.length || 0
+        })
+      } else {
+        console.warn('API返回数据格式异常，使用模拟数据')
+        chainTableData.value = getMockChainTableData()
+      }
+    } else {
+      console.warn('API返回数据为空，使用模拟数据')
+      chainTableData.value = getMockChainTableData()
+    }
+} catch (error: any) {
     console.error('加载链表数据失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    })
+    
     // 如果API调用失败，使用模拟数据
     chainTableData.value = getMockChainTableData()
+    console.log('使用模拟数据:', chainTableData.value)
+    
+    // 显示用户友好的错误信息
+    ElMessage.warning('无法连接到后端服务，正在使用模拟数据')
   }
 }
 
@@ -850,8 +2106,34 @@ const getMockChainTableData = () => {
           { name: 'filter', rules: [] }
         ],
         rules: [
-          { id: 1, chain_name: 'PREROUTING', table: 'mangle', rule_text: 'MARK --set-mark 1' },
-          { id: 2, chain_name: 'PREROUTING', table: 'nat', rule_text: 'DNAT --to-destination 192.168.1.100' }
+          { 
+            id: 1, 
+            chain_name: 'PREROUTING', 
+            table: 'mangle', 
+            rule_text: 'MARK --set-mark 1',
+            line_number: '1',
+            target: 'MARK',
+            source: '0.0.0.0/0',
+            destination: '0.0.0.0/0',
+            protocol: 'all',
+            in_interface: 'any',
+            out_interface: 'any',
+            options: '--set-mark 1'
+          },
+          { 
+            id: 2, 
+            chain_name: 'PREROUTING', 
+            table: 'nat', 
+            rule_text: 'DNAT --to-destination 192.168.1.100',
+            line_number: '2',
+            target: 'DNAT',
+            source: '0.0.0.0/0',
+            destination: '0.0.0.0/0',
+            protocol: 'tcp',
+            in_interface: 'eth0',
+            out_interface: 'any',
+            options: '--to-destination 192.168.1.100'
+          }
         ]
       },
       {
@@ -867,9 +2149,48 @@ const getMockChainTableData = () => {
           ] }
         ],
         rules: [
-          { id: 3, chain_name: 'INPUT', table: 'filter', rule_text: 'ACCEPT -p tcp --dport 22' },
-          { id: 4, chain_name: 'INPUT', table: 'filter', rule_text: 'ACCEPT -p tcp --dport 80' },
-          { id: 5, chain_name: 'INPUT', table: 'filter', rule_text: 'DROP -p tcp --dport 23' }
+          { 
+            id: 3, 
+            chain_name: 'INPUT', 
+            table: 'filter', 
+            rule_text: 'ACCEPT -p tcp --dport 22',
+            line_number: '3',
+            target: 'ACCEPT',
+            source: '0.0.0.0/0',
+            destination: '0.0.0.0/0',
+            protocol: 'tcp',
+            in_interface: 'any',
+            out_interface: 'any',
+            options: '--dport 22'
+          },
+          { 
+            id: 4, 
+            chain_name: 'INPUT', 
+            table: 'filter', 
+            rule_text: 'ACCEPT -p tcp --dport 80',
+            line_number: '4',
+            target: 'ACCEPT',
+            source: '0.0.0.0/0',
+            destination: '0.0.0.0/0',
+            protocol: 'tcp',
+            in_interface: 'any',
+            out_interface: 'any',
+            options: '--dport 80'
+          },
+          { 
+            id: 5, 
+            chain_name: 'INPUT', 
+            table: 'filter', 
+            rule_text: 'DROP -p tcp --dport 23',
+            line_number: '5',
+            target: 'DROP',
+            source: '0.0.0.0/0',
+            destination: '0.0.0.0/0',
+            protocol: 'tcp',
+            in_interface: 'any',
+            out_interface: 'any',
+            options: '--dport 23'
+          }
         ]
       },
       {
@@ -1000,8 +2321,8 @@ const getMockChainTableData = () => {
 
 const loadInterfaces = async () => {
   try {
-    const data = await getNetworkInterfaces()
-    interfaces.value = data
+    const response = await networkAPI.getInterfaces()
+    interfaces.value = response.data
   } catch (error) {
     console.error('加载网络接口失败:', error)
     // 如果API调用失败，使用模拟数据
@@ -1080,6 +2401,94 @@ const getMockInterfaces = () => {
   ]
 }
 
+// 筛选相关方法
+const toggleInterface = (interfaceName: string) => {
+  const index = selectedInterfaces.value.indexOf(interfaceName)
+  if (index > -1) {
+    selectedInterfaces.value.splice(index, 1)
+  } else {
+    selectedInterfaces.value.push(interfaceName)
+  }
+}
+
+const toggleProtocol = (protocol: string) => {
+  const index = selectedProtocols.value.indexOf(protocol)
+  if (index > -1) {
+    selectedProtocols.value.splice(index, 1)
+  } else {
+    selectedProtocols.value.push(protocol)
+  }
+}
+
+const toggleTarget = (target: string) => {
+  const index = selectedTargets.value.indexOf(target)
+  if (index > -1) {
+    selectedTargets.value.splice(index, 1)
+  } else {
+    selectedTargets.value.push(target)
+  }
+}
+
+const clearAllFilters = () => {
+  selectedInterfaces.value = []
+  selectedProtocols.value = []
+  selectedTargets.value = []
+  ipRangeFilter.value = ''
+  portRangeFilter.value = ''
+}
+
+const applyFilters = () => {
+  // 筛选条件已通过计算属性自动应用
+  ElMessage.success(`已应用 ${activeFiltersCount.value} 个筛选条件`)
+}
+
+// 接口视图相关方法
+const toggleInterfaceType = (type: string) => {
+  const index = selectedInterfaceTypes.value.indexOf(type)
+  if (index > -1) {
+    selectedInterfaceTypes.value.splice(index, 1)
+  } else {
+    selectedInterfaceTypes.value.push(type)
+  }
+}
+
+const toggleInterfaceStatus = (status: string) => {
+  if (interfaceStatusFilter.value === status) {
+    interfaceStatusFilter.value = ''
+  } else {
+    interfaceStatusFilter.value = status
+  }
+}
+
+const clearInterfaceFilters = () => {
+  selectedInterfaceTypes.value = []
+  interfaceStatusFilter.value = ''
+}
+
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const viewInterfaceRules = (interfaceName: string) => {
+  // 获取该接口相关的所有规则
+  const interfaceRules = filteredTableRules.value.filter((rule: any) => 
+    rule.InInterface === interfaceName || rule.OutInterface === interfaceName ||
+    rule.in_interface === interfaceName || rule.out_interface === interfaceName
+  )
+  
+  // 设置弹窗数据
+  selectedChain.value = `接口 ${interfaceName}`
+  detailRules.value = interfaceRules
+  detailTitle.value = `接口 ${interfaceName} 相关规则${hasActiveFilters.value ? ' (已筛选)' : ''}`
+  showChainDialog.value = true
+  
+  console.log(`显示接口 ${interfaceName} 的规则:`, interfaceRules.length, '条规则')
+}
+
 const handleInterfaceChange = () => {
   loadChainTableData()
 }
@@ -1088,302 +2497,102 @@ const handleViewModeChange = () => {
   selectedChain.value = ''
 }
 
-const selectChain = (chainName: string) => {
-  selectedChain.value = chainName
-  const chain = chains.value.find((c: any) => c.name === chainName)
-  if (chain) {
-    detailTitle.value = `${chainName} 链详细规则`
-    detailRules.value = chain.rules || []
-    showDetailDialog.value = true
-  }
-}
-
-const selectChainInTable = (tableName: string, chainName: string) => {
-  const table = tables.value.find((t: any) => t.name === tableName)
-  if (table) {
-    const chain = table.chains.find((c: any) => c.name === chainName)
-    if (chain) {
-      detailTitle.value = `${tableName}.${chainName} 详细规则`
-      detailRules.value = chain.rules || []
-      showDetailDialog.value = true
-    }
-  }
-}
-
-const closeDetailDialog = () => {
-  showDetailDialog.value = false
-  detailRules.value = []
-  groupByChain.value = true
-}
-
-const handleGroupModeChange = () => {
-  // 分组模式切换时的处理逻辑
-  console.log('分组模式切换:', groupByChain.value)
-}
-
-// 获取分组中的表名列表
-const getTablesInGroup = (rules: any[]) => {
-  const tables = new Set(rules.map(rule => rule.table).filter(Boolean))
-  return Array.from(tables)
-}
-
-// 获取表的标签类型
-const getTableTagType = (tableName: string) => {
-  const types: Record<string, string> = {
-    'raw': 'info',
-    'mangle': 'warning', 
-    'nat': 'success',
-    'filter': 'danger'
-  }
-  return types[tableName] || 'default'
-}
-
-// 获取目标的标签类型
-const getTargetTagType = (target: string) => {
-  const types: Record<string, string> = {
-    'ACCEPT': 'success',
-    'DROP': 'danger',
-    'REJECT': 'warning',
-    'RETURN': 'info',
-    'MASQUERADE': 'primary',
-    'SNAT': 'primary',
-    'DNAT': 'primary'
-  }
-  return types[target] || 'default'
-}
-
-const getChainTagType = (chainName: string) => {
-  const types: Record<string, string> = {
-    'PREROUTING': 'primary',
-    'INPUT': 'success',
-    'FORWARD': 'warning',
-    'OUTPUT': 'info',
-    'POSTROUTING': 'danger'
-  }
-  return types[chainName] || 'default'
-}
-
-// 格式化日期
-const formatDate = (dateString: string) => {
-  if (!dateString) return '-'
-  return new Date(dateString).toLocaleString('zh-CN')
-}
-
-const getInterfaceRuleCount = (interfaceName: string, direction: string) => {
-  const rules = chainTableData.value.interfaceRules?.[interfaceName] || []
-  return rules.filter((rule: any) => {
-    if (direction === 'in') {
-      return rule.in_interface === interfaceName || rule.interface_in === interfaceName
-    } else if (direction === 'out') {
-      return rule.out_interface === interfaceName || rule.interface_out === interfaceName
-    } else if (direction === 'forward') {
-      return rule.chain_name === 'FORWARD' && 
-             (rule.in_interface === interfaceName || rule.out_interface === interfaceName)
-    }
-    return false
-  }).length
-}
-
-// 自动比对并同步系统规则
-const autoSyncSystemRules = async () => {
-  console.log('[DEBUG] autoSyncSystemRules called')
-  try {
-    // 先比对系统规则和数据库规则
-    const compareResult = await apiService.compareSystemAndDatabaseRules()
-    console.log('[DEBUG] Compare result:', compareResult.data)
-    
-    if (!compareResult.data.consistent) {
-      console.log('[DEBUG] Rules are inconsistent, auto syncing...')
-      // 如果不一致，自动同步
-      await apiService.syncSystemRules()
-      console.log('[DEBUG] Auto sync completed')
-      return true // 返回true表示进行了同步
-    } else {
-      console.log('[DEBUG] Rules are consistent, no sync needed')
-      return false // 返回false表示无需同步
-    }
-  } catch (error) {
-    console.error('[ERROR] Failed to auto sync system rules:', error)
-    throw error
-  }
-}
-
-// 同步系统规则 - 复用Rules.vue中的实现（保留原方法以备手动调用）
-const syncSystemRules = async () => {
-  console.log('[DEBUG] syncSystemRules called')
-  try {
-    loading.value = true
-    await apiService.syncSystemRules()
-    ElMessage.success('系统规则同步成功')
-    // 同步成功后重新加载数据
-    await loadChainTableData()
-  } catch (error) {
-    console.error('[ERROR] Failed to sync system rules:', error)
-    ElMessage.error('同步系统规则失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 规则管理相关方法
-const loadRules = async () => {
-  rulesLoading.value = true
-  try {
-    const response = await apiService.getRules()
-    rules.value = response.data
-  } catch (error) {
-    console.error('Failed to load rules:', error)
-    ElMessage.error('加载规则失败')
-  } finally {
-    rulesLoading.value = false
-  }
-}
-
-const showAddRuleDialog = () => {
-  isEditRule.value = false
-  ruleDialogVisible.value = true
-  resetRuleForm()
-}
-
-const editRule = (rule: any) => {
-  isEditRule.value = true
-  ruleDialogVisible.value = true
-  Object.assign(ruleForm, rule)
-}
-
-const deleteRule = async (rule: any) => {
-  try {
-    await ElMessageBox.confirm('确定要删除这条规则吗？', '确认删除', {
-      type: 'warning'
-    })
-    
-    await apiService.deleteRule(rule.id!)
-    ElMessage.success('删除成功')
-    await loadRules()
-    await refreshData() // 刷新五链四表数据
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('删除失败')
-    }
-  }
-}
-
-const submitRuleForm = async () => {
-  if (!ruleFormRef.value) return
-  
-  await ruleFormRef.value.validate(async (valid) => {
-    if (valid) {
-      try {
-        if (isEditRule.value) {
-          await apiService.updateRule(ruleForm.id!, ruleForm)
-          ElMessage.success('更新成功')
-        } else {
-          await apiService.addRule(ruleForm)
-          ElMessage.success('添加成功')
-        }
-        ruleDialogVisible.value = false
-        await loadRules()
-        await refreshData() // 刷新五链四表数据
-      } catch (error) {
-        ElMessage.error(isEditRule.value ? '更新失败' : '添加失败')
-      }
-    }
-  })
-}
-
-const resetRuleForm = () => {
-  Object.assign(ruleForm, {
-    id: undefined,
-    chain_name: '',
-    target: '',
-    protocol: '',
-    source_ip: '',
-    destination_ip: '',
-    destination_port: ''
-  })
-  ruleFormRef.value?.clearValidate()
-}
-
-// 从详细规则页面编辑规则
-const editRuleFromDetail = (rule: any) => {
-  // 将详细规则数据转换为规则表单数据
-  isEditRule.value = true
-  ruleDialogVisible.value = true
-  Object.assign(ruleForm, {
-    id: rule.id,
-    chain_name: rule.chain_name || '',
-    target: rule.target || '',
-    protocol: rule.protocol || '',
-    source_ip: rule.source || '',
-    destination_ip: rule.destination || '',
-    destination_port: rule.destination_port || ''
-  })
-}
-
-// 从详细规则页面删除规则
-const deleteRuleFromDetail = async (rule: any) => {
-  try {
-    await ElMessageBox.confirm('确定要删除这条规则吗？', '确认删除', {
-      type: 'warning'
-    })
-    
-    if (rule.id) {
-      await apiService.deleteRule(rule.id)
-      ElMessage.success('删除成功')
-      await refreshData() // 刷新所有数据
-      // 重新加载详细规则数据
-      const chain = chains.value.find((c: any) => c.name === selectedChain.value)
-      if (chain) {
-        detailRules.value = chain.rules || []
-      }
-    } else {
-      ElMessage.warning('无法删除：规则ID不存在')
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('删除失败')
-    }
-  }
-}
-
-// 生命周期
+// 初始化
 onMounted(async () => {
-  loading.value = true
-  try {
-    // 页面加载时自动比对并同步
-    await autoSyncSystemRules()
-    
-    // 加载数据
-    await Promise.all([
-      loadChainTableData(),
-      loadInterfaces()
-    ])
-  } catch (error) {
-    console.error('初始化数据失败:', error)
-    ElMessage.error('初始化数据失败')
-  } finally {
-    loading.value = false
-  }
+  console.log('组件挂载，开始初始化...')
+  await refreshData()
+  console.log('数据刷新完成')
+  
+  // 调试数据状态
+  debugDataState()
+  
+  // 确保数据加载完成后再初始化流程图
+  nextTick(() => {
+    initializeFlowElements()
+  })
 })
+
+// 数据验证和调试函数
+const validateAndDebugData = () => {
+  console.log('=== 数据验证和调试 ===')
+  console.log('chainTableData.value:', chainTableData.value)
+  console.log('chains.value:', chains.value)
+  console.log('tables.value:', tables.value)
+  console.log('interfaces.value:', interfaces.value)
+  console.log('flowElements.value:', flowElements.value)
+  
+  if (chainTableData.value) {
+    console.log('链数据详情:')
+    if (chainTableData.value.chains) {
+      chainTableData.value.chains.forEach((chain: any, index: number) => {
+        console.log(`  链${index + 1}: ${chain.name}`, {
+          rules: chain.rules?.length || 0,
+          tables: chain.tables?.length || 0
+        })
+      })
+    }
+    
+    if (chainTableData.value.tables) {
+      console.log('表数据详情:')
+      chainTableData.value.tables.forEach((table: any, index: number) => {
+        console.log(`  表${index + 1}: ${table.name}`, {
+          chains: table.chains?.length || 0
+        })
+      })
+    }
+  }
+  console.log('=== 数据验证结束 ===')
+}
+
+// 监听数据变化，更新流程图
+watch([chainTableData, rules], () => {
+  console.log('数据变化监听器触发')
+  validateAndDebugData()
+  
+  // 确保数据存在后再更新流程图
+  if (chainTableData.value && chainTableData.value.chains) {
+    console.log('数据验证通过，更新流程图')
+    nextTick(() => {
+      initializeFlowElements()
+    })
+  } else {
+    console.log('数据验证失败，跳过流程图更新')
+  }
+}, { deep: true })
+
+// 监听筛选条件变化，更新拓扑图
+watch([selectedInterfaces, selectedProtocols, selectedTargets, ipRangeFilter, portRangeFilter], () => {
+  console.log('筛选条件变化，更新拓扑图')
+  if (chainTableData.value && chainTableData.value.chains) {
+    nextTick(() => {
+      initializeFlowElements()
+    })
+  }
+}, { deep: true })
 </script>
 
 <style scoped>
 .chain-table-view {
   padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
 }
 
 .page-header {
-  margin-bottom: 20px;
+  text-align: center;
+  margin-bottom: 30px;
+  color: white;
 }
 
 .page-header h1 {
-  color: #303133;
-  margin-bottom: 8px;
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
 .description {
-  color: #606266;
-  font-size: 14px;
+  font-size: 1.1rem;
+  opacity: 0.9;
 }
 
 .control-panel {
@@ -1392,578 +2601,95 @@ onMounted(async () => {
 
 .controls {
   display: flex;
-  gap: 16px;
+  gap: 15px;
   align-items: center;
-}
-
-.loading-container {
-  margin-top: 20px;
+  flex-wrap: wrap;
 }
 
 .main-content {
-  margin-top: 20px;
-}
-
-/* 链视图样式 */
-.chains-container {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding: 16px 0;
-}
-
-.chain-card {
-  min-width: 280px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.chain-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.chain-card.active {
-  border: 2px solid #409EFF;
-}
-
-.chain-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.chain-header h3 {
-  margin: 0;
-  color: #303133;
-}
-
-.chain-content {
-  position: relative;
-}
-
-.tables-in-chain {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.table-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.table-item.raw {
-  background-color: #f0f9ff;
-  border-left: 3px solid #0ea5e9;
-}
-
-.table-item.mangle {
-  background-color: #fefce8;
-  border-left: 3px solid #eab308;
-}
-
-.table-item.nat {
-  background-color: #f0fdf4;
-  border-left: 3px solid #22c55e;
-}
-
-.table-item.filter {
-  background-color: #fef2f2;
-  border-left: 3px solid #ef4444;
-}
-
-.table-name {
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.table-rules {
-  color: #6b7280;
-}
-
-.flow-indicator {
-  position: absolute;
-  right: -20px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #409EFF;
-  font-size: 20px;
-}
-
-/* 表视图样式 */
-.tables-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-}
-
-.table-card {
-  transition: all 0.3s ease;
-}
-
-.table-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.table-card.raw :deep(.el-card__header) {
-  background-color: #f0f9ff;
-  border-bottom: 2px solid #0ea5e9;
-}
-
-.table-card.mangle :deep(.el-card__header) {
-  background-color: #fefce8;
-  border-bottom: 2px solid #eab308;
-}
-
-.table-card.nat :deep(.el-card__header) {
-  background-color: #f0fdf4;
-  border-bottom: 2px solid #22c55e;
-}
-
-.table-card.filter :deep(.el-card__header) {
-  background-color: #fef2f2;
-  border-bottom: 2px solid #ef4444;
-}
-
-.table-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.table-header h3 {
-  margin: 0;
-  color: #303133;
-}
-
-.table-chains {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.chain-in-table {
-  padding: 12px;
-  border: 1px solid #e4e7ed;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.chain-in-table:hover {
-  border-color: #409EFF;
-  background-color: #f5f7fa;
-}
-
-.chain-name {
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 4px;
-}
-
-.chain-rules-count {
-  font-size: 12px;
-  color: #909399;
-}
-
-.chain-policy {
-  font-size: 12px;
-  color: #606266;
-  margin-top: 4px;
-}
-
-/* 接口视图样式 */
-.interfaces-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 20px;
-}
-
-.interface-card {
-  transition: all 0.3s ease;
-}
-
-.interface-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.interface-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.interface-header h3 {
-  margin: 0;
-  color: #303133;
-}
-
-.interface-info {
-  display: flex;
-  gap: 8px;
-}
-
-.interface-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.interface-details p {
-  margin: 8px 0;
-  font-size: 14px;
-  color: #606266;
-}
-
-.interface-rules h4 {
-  margin: 0 0 12px 0;
-  color: #303133;
-  font-size: 16px;
-}
-
-.rules-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-}
-
-.stat-label {
-  color: #606266;
-  font-size: 14px;
-}
-
-.stat-value {
-  color: #303133;
-  font-weight: 600;
-}
-
-/* 详细信息弹窗样式 */
-.detail-content {
-  max-height: 75vh;
-  overflow-y: auto;
-}
-
-.detail-controls {
-  margin-bottom: 20px;
-  padding: 16px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.detail-left-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.detail-right-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.grouped-rules {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.rule-group {
-  border: 1px solid #e4e7ed;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-}
-
-.rule-group:hover {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-}
-
-.group-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-bottom: none;
-}
-
-.group-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.group-title h4 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.group-stats {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font-size: 14px;
-  opacity: 0.9;
-}
-
-.stat-item {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.chain-rules-table {
-  border: none;
-}
-
-.chain-rules-table :deep(.el-table__header) {
-  background-color: #fafbfc;
-}
-
-.chain-rules-table :deep(.el-table__header th) {
-  background-color: #fafbfc;
-  color: #606266;
-  font-weight: 600;
-  border-bottom: 2px solid #e4e7ed;
-}
-
-.chain-rules-table :deep(.el-table__row:hover) {
-  background-color: #f0f9ff;
-}
-
-.chain-rules-table :deep(.el-table__row:hover td) {
-  background-color: #f0f9ff;
-}
-
-.no-target {
-  color: #c0c4cc;
-  font-style: italic;
-}
-
-.list-rules {
-  margin-top: 16px;
-}
-
-
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .chains-container {
-    flex-direction: column;
-  }
-  
-  .chain-card {
-    min-width: auto;
-  }
-  
-  .controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .tables-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .interfaces-container {
-    grid-template-columns: 1fr;
-  }
-  
-  .detail-controls {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-  
-  .detail-right-controls {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
-  .detail-right-controls .el-input {
-    width: 100% !important;
-    margin-left: 0 !important;
-    margin-top: 8px;
-  }
-}
-
-/* 表格样式优化 */
-.chain-rules-table .el-table__header-wrapper {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.chain-rules-table .el-table__header-wrapper th {
-  background: transparent !important;
-  color: white !important;
-  font-weight: 600;
-}
-
-.no-target, .no-interface {
-  color: #909399;
-  font-style: italic;
-}
-
-/* 规则表单样式 */
-.rule-form .el-divider {
-  margin: 20px 0 16px 0;
-}
-
-.rule-form .el-divider__text {
-  background: #f5f7fa;
-  color: #606266;
-  font-weight: 600;
-  padding: 0 16px;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid #e4e7ed;
-}
-
-/* 标签样式优化 */
-.el-tag {
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-/* 数据流图样式 */
-.dataflow-view {
-  padding: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 12px;
-  min-height: 600px;
-  position: relative;
-}
-
-.protocol-stack {
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-.protocol-box {
-  display: inline-block;
-  padding: 12px 24px;
-  background: #e8f5e8;
-  border: 2px solid #4caf50;
-  border-radius: 8px;
-  font-weight: bold;
-  color: #2e7d32;
-}
-
-.dashed-line {
-  height: 2px;
-  background: repeating-linear-gradient(
-    to right,
-    #666 0px,
-    #666 10px,
-    transparent 10px,
-    transparent 20px
-  );
-  margin: 20px 0;
-}
-
-.main-flow {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 30px;
-}
-
-.flow-start, .flow-end {
-  display: flex;
-  justify-content: center;
-}
-
-.flow-node {
-  padding: 12px 24px;
-  border-radius: 50px;
-  font-weight: bold;
-  color: white;
-}
-
-.start-node {
-  background: linear-gradient(135deg, #42a5f5, #1976d2);
-}
-
-.end-node {
-  background: linear-gradient(135deg, #42a5f5, #1976d2);
-}
-
-.chain-section {
-  display: flex;
-  justify-content: center;
-  margin: 10px 0;
-}
-
-.chain-box {
   background: white;
   border-radius: 12px;
-  padding: 16px 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  min-width: 200px;
-  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  overflow: hidden;
 }
 
-.chain-box:hover {
+.dataflow-view {
+  height: 800px;
+  position: relative;
+}
+
+.vue-flow-wrapper {
+  height: 100%;
+  width: 100%;
+}
+
+.dataflow-diagram {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+/* 自定义节点样式 */
+.chain-node {
+  background: white;
+  border: 2px solid #e1e5e9;
+  border-radius: 12px;
+  padding: 15px;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.chain-node:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+.chain-node.prerouting {
+  border-color: #ff6b6b;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+}
+
+.chain-node.input {
+  border-color: #4ecdc4;
+  background: linear-gradient(135deg, #f0fdfc 0%, #ccfbf1 100%);
+}
+
+.chain-node.forward {
+  border-color: #45b7d1;
+  background: linear-gradient(135deg, #f0f9ff 0%, #dbeafe 100%);
+}
+
+.chain-node.output {
+  border-color: #96ceb4;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.chain-node.postrouting {
+  border-color: #feca57;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
 }
 
 .chain-title {
-  font-size: 16px;
+  font-size: 1.2rem;
   font-weight: bold;
-  margin-bottom: 8px;
-  color: #333;
+  margin-bottom: 10px;
+  text-align: center;
+  color: #2d3748;
 }
 
 .chain-tables {
   display: flex;
+  gap: 5px;
   justify-content: center;
-  gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
 .table-tag {
   padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-  color: white;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1973,135 +2699,768 @@ onMounted(async () => {
 }
 
 .table-tag.raw {
-  background: #ff9800;
+  background: #ff6b6b;
+  color: white;
 }
 
 .table-tag.mangle {
-  background: #9c27b0;
+  background: #4ecdc4;
+  color: white;
 }
 
 .table-tag.nat {
-  background: #4caf50;
+  background: #45b7d1;
+  color: white;
 }
 
 .table-tag.filter {
-  background: #f44336;
+  background: #96ceb4;
+  color: white;
 }
 
-.rule-count {
-  font-size: 12px;
+.chain-stats {
+  text-align: center;
+  font-size: 0.9rem;
   color: #666;
+  font-weight: 500;
 }
 
-.routing-decision {
+.decision-node {
+  background: #feca57;
+  border: 2px solid #f39c12;
+  border-radius: 50%;
+  width: 120px;
+  height: 120px;
   display: flex;
+  align-items: center;
   justify-content: center;
-  margin: 20px 0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
 }
 
-.decision-diamond {
-  background: #fff3e0;
-  border: 2px solid #ff9800;
-  padding: 16px;
-  border-radius: 8px;
+.decision-node:hover {
+  transform: scale(1.05);
+}
+
+.decision-content {
   text-align: center;
   font-weight: bold;
-  color: #e65100;
-  position: relative;
+  color: #2d3748;
+  font-size: 0.9rem;
+  line-height: 1.2;
 }
 
-.decision-sublabel {
+.endpoint-node {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 25px;
+  padding: 12px 20px;
+  font-weight: bold;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: all 0.3s ease;
+}
+
+.endpoint-node:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.endpoint-node.entry {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.endpoint-node.exit {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.process-node {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  color: white;
+  border-radius: 12px;
+  padding: 15px 20px;
+  font-weight: bold;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+}
+
+.process-node:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+.protocol-node {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+  border: 2px solid #48bb78;
+  border-radius: 12px;
+  padding: 15px 25px;
+  font-weight: bold;
+  color: #2d3748;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+}
+
+.protocol-node:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+.loading-container {
+  padding: 40px;
+  background: white;
+  border-radius: 12px;
+  margin-top: 20px;
+}
+
+/* Vue Flow 自定义样式 */
+:deep(.vue-flow__edge-path) {
+  stroke-width: 2px;
+}
+
+:deep(.vue-flow__edge-label) {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #2d3748;
+}
+
+:deep(.vue-flow__controls) {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+:deep(.vue-flow__controls-button) {
+  border: none;
+  background: transparent;
+  color: #4a5568;
+  transition: all 0.2s ease;
+}
+
+:deep(.vue-flow__controls-button:hover) {
+  background: #e2e8f0;
+  color: #2d3748;
+}
+
+/* 控制面板样式 */
+.main-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.view-tabs {
+  flex: 1;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+/* 筛选面板样式 */
+.filter-panel {
+  margin-top: 16px;
+}
+
+.filter-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.filter-content {
+  padding: 16px 0;
+}
+
+.quick-filters {
+  margin-bottom: 16px;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.filter-label {
+  min-width: 80px;
+  font-weight: 500;
+  color: #606266;
+}
+
+.filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-tag {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-tag:hover {
+  transform: scale(1.05);
+}
+
+.advanced-filters {
+  border-top: 1px solid #e4e7ed;
+  padding-top: 16px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* 卡片式表视图样式 */
+.rules-cards-container {
+  padding: 20px;
+}
+
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.rule-card {
+  transition: all 0.3s ease;
+}
+
+.rule-card:hover {
+  transform: translateY(-2px);
+}
+
+.rule-card-content {
+  height: 100%;
+}
+
+.rule-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rule-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rule-number {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: bold;
+  color: #409eff;
+}
+
+.rule-stats {
+  display: flex;
+  gap: 6px;
+}
+
+.rule-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.rule-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rule-chain-table {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.rule-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rule-target label {
+  font-weight: 500;
+  color: #606266;
+  min-width: 40px;
+}
+
+.rule-network {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: #f0f9ff;
+  border-radius: 6px;
+  border-left: 3px solid #409eff;
+}
+
+.network-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.network-item label {
+  font-weight: 500;
+  color: #606266;
+  min-width: 60px;
   font-size: 12px;
-  font-weight: normal;
+}
+
+.network-value {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  color: #2d3748;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-interfaces {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #f0fdf4;
+  border-radius: 6px;
+  border-left: 3px solid #10b981;
+}
+
+.interface-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.interface-arrow {
+  color: #9ca3af;
+}
+
+.rule-options {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  background: #fffbeb;
+  border-radius: 6px;
+  border-left: 3px solid #f59e0b;
+}
+
+.rule-options label {
+  font-weight: 500;
+  color: #606266;
+  min-width: 40px;
+  font-size: 12px;
+}
+
+.options-text {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 11px;
+  color: #2d3748;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+}
+
+/* 接口视图新增样式 */
+.stats-panel {
+  margin-bottom: 20px;
+}
+
+.stats-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stats-content {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+}
+
+.stats-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.stats-icon.active {
+  background: #e8f5e8;
+  color: #4caf50;
+}
+
+.stats-icon.docker {
+  background: #fff3e0;
+  color: #ff9800;
+}
+
+.stats-icon.rules {
+  background: #f3e5f5;
+  color: #9c27b0;
+}
+
+.stats-info {
+  flex: 1;
+}
+
+.stats-number {
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+  line-height: 1;
+}
+
+.stats-label {
+  font-size: 14px;
   color: #666;
   margin-top: 4px;
 }
 
-.flow-split {
-  display: flex;
-  justify-content: space-around;
-  width: 100%;
-  gap: 40px;
-  margin: 30px 0;
+.interface-filters {
+  margin-bottom: 20px;
 }
 
-.local-path, .forward-path {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.interface-filters .filter-content {
+  padding: 16px;
+}
+
+.interface-filters .filter-group {
+  margin-bottom: 16px;
+}
+
+.interface-filters .filter-group:last-child {
+  margin-bottom: 0;
+}
+
+.interface-filters .filter-actions {
+  text-align: right;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.interfaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
   gap: 20px;
 }
 
-.path-label {
-  font-weight: bold;
-  color: #333;
-  font-size: 14px;
-}
-
-.path-sublabel {
-  font-size: 12px;
-  color: #666;
-  margin-top: -10px;
-}
-
-.local-process {
-  display: flex;
-  justify-content: center;
-}
-
-.process-box {
-  padding: 12px 20px;
-  background: #e3f2fd;
-  border: 2px solid #2196f3;
+.interface-card-content {
+  height: 100%;
   border-radius: 8px;
-  font-weight: bold;
-  color: #1565c0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
 }
 
-/* 特定链的颜色 */
-.prerouting .chain-box {
+.interface-card-content:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.interface-card-content.docker-interface {
   border-left: 4px solid #ff9800;
 }
 
-.input .chain-box {
-  border-left: 4px solid #4caf50;
+.interface-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.forward .chain-box {
-  border-left: 4px solid #2196f3;
+.interface-icon {
+  font-size: 20px;
+  color: #1976d2;
 }
 
-.output .chain-box {
-  border-left: 4px solid #9c27b0;
+.interface-badges {
+  display: flex;
+  gap: 8px;
 }
 
-.postrouting .chain-box {
-  border-left: 4px solid #f44336;
+.interface-basic-info {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
 }
 
-/* 数据流图响应式设计 */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+.info-label {
+  font-weight: 500;
+  color: #666;
+}
+
+.info-value {
+  color: #333;
+}
+
+.interface-network-info {
+  margin-bottom: 20px;
+}
+
+.network-section {
+  margin-bottom: 16px;
+}
+
+.network-section h4 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.address-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.address-tag {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.no-address {
+  color: #999;
+  font-style: italic;
+}
+
+.mac-address {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #666;
+}
+
+.interface-rules-stats {
+  margin-bottom: 20px;
+}
+
+.stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.stats-header h4 {
+  margin: 0;
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.rule-stat-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.rule-stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-size: 16px;
+}
+
+.rule-stat-icon.input {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.rule-stat-icon.output {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.rule-stat-icon.forward {
+  background: #e8f5e8;
+  color: #388e3c;
+}
+
+.rule-stat-icon.total {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.rule-stat-item.total {
+  grid-column: span 2;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px solid #dee2e6;
+}
+
+.rule-stat-info {
+  flex: 1;
+}
+
+.rule-stat-number {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  line-height: 1;
+}
+
+.rule-stat-label {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.interface-traffic-stats {
+  margin-bottom: 20px;
+}
+
+.interface-traffic-stats h4 {
+  margin: 0 0 12px 0;
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.traffic-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.traffic-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.traffic-label {
+  font-weight: 500;
+  color: #666;
+}
+
+.traffic-value {
+  color: #333;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+}
+
+.interface-actions {
+  text-align: center;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+  .rules-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
-  .dataflow-view {
+  .chain-table-view {
     padding: 10px;
   }
   
-  .flow-split {
+  .page-header h1 {
+    font-size: 2rem;
+  }
+  
+  .main-controls {
     flex-direction: column;
-    gap: 20px;
+    align-items: stretch;
+    gap: 12px;
   }
   
-  .chain-box {
-    min-width: 150px;
+  .filter-group {
+    flex-direction: column;
+    align-items: flex-start;
   }
   
-  .chain-tables {
-    gap: 4px;
+  .filter-label {
+    min-width: auto;
   }
   
-  .table-tag {
-    font-size: 10px;
-    padding: 2px 6px;
+  .rules-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .rule-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .rule-network {
+    font-size: 12px;
+  }
+  
+  .network-value {
+    max-width: 150px;
+  }
+  
+  .dataflow-view {
+    height: 600px;
+  }
+  
+  .chain-node {
+    min-width: 120px;
+    padding: 10px;
+  }
+  
+  .decision-node {
+    width: 80px;
+    height: 80px;
   }
 }
 </style>

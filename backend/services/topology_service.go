@@ -475,7 +475,7 @@ func (s *TopologyService) generateRuleNodes(tables []TableInfo, topology *Topolo
 						TableName:  table.TableName,
 						ChainName:  chain.ChainName,
 						RuleNumber: i + 1,
-						Packets:    rule.Packets,
+						Packets:    fmt.Sprintf("%d", rule.Packets),
 						Bytes:      rule.Bytes,
 						Layer:      2, // 规则在中间层
 						Position: Position{
@@ -487,7 +487,7 @@ func (s *TopologyService) generateRuleNodes(tables []TableInfo, topology *Topolo
 							"protocol":      rule.Protocol,
 							"source":        rule.Source,
 							"destination":   rule.Destination,
-							"line_number":   rule.LineNumber,
+							"line_number":   fmt.Sprintf("%d", rule.LineNumber),
 							"interface_in":  s.extractInterface(rule.RuleText, "-i"),
 							"interface_out": s.extractInterface(rule.RuleText, "-o"),
 							"source_port":   s.extractPort(rule.RuleText, "--sport"),
@@ -977,5 +977,5 @@ func (s *TopologyService) getRuleLabel(rule RuleInfo) string {
 	if rule.Protocol != "" && rule.Protocol != "all" {
 		return fmt.Sprintf("%s", rule.Protocol)
 	}
-	return fmt.Sprintf("Rule %s", rule.LineNumber)
+	return fmt.Sprintf("Rule %d", rule.LineNumber)
 }
