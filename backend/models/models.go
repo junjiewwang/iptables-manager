@@ -63,10 +63,21 @@ type DockerBridge struct {
 	NetworkID  string            `json:"network_id"`
 	Driver     string            `json:"driver"`
 	Scope      string            `json:"scope"`
+	IPAddress  string            `json:"ip_address,omitempty"` // 主要IP地址，方便前端使用
 	IPAMConfig DockerIPAMConfig  `json:"ipam_config"`
 	Containers []DockerContainer `json:"containers"`
 	Rules      []IPTablesRule    `json:"rules"`
 	Interface  NetworkInterface  `json:"interface"`
+}
+
+// ConnectivityFixResult 连通性修复结果
+type ConnectivityFixResult struct {
+	TunnelInterface string   `json:"tunnel_interface"`
+	DockerBridge    string   `json:"docker_bridge"`
+	Success         bool     `json:"success"`
+	FixedIssues     []string `json:"fixed_issues"`
+	AppliedRules    []string `json:"applied_rules"`
+	Message         string   `json:"message,omitempty"`
 }
 
 // DockerIPAMConfig Docker IPAM配置
@@ -154,6 +165,7 @@ type TunnelDockerAnalysis struct {
 	DockerBridge      string              `json:"docker_bridge"`
 	ForwardRules      []IPTablesRule      `json:"forward_rules"`
 	NATRules          []IPTablesRule      `json:"nat_rules"`
+	IsolationRules    []IPTablesRule      `json:"isolation_rules"` // DOCKER-ISOLATION-STAGE-2链规则
 	CommunicationPath []CommunicationStep `json:"communication_path"`
 	Statistics        TunnelDockerStats   `json:"statistics"`
 	Recommendations   []string            `json:"recommendations"`

@@ -31,7 +31,7 @@ RUN go mod tidy && CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o /a
 FROM debian:bullseye-slim
 
 # 安装运行时依赖并清理缓存
-RUN apt-get update && apt-get install -y ca-certificates iptables sqlite3 iproute2 net-tools && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates iptables sqlite3 iproute2 net-tools iputils-ping hping3 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

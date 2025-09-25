@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"iptables-management-backend/utils"
 	"log"
 	"os/exec"
 	"strconv"
@@ -211,12 +212,8 @@ func (s *TableService) parseRuleLine(line string) *RuleInfo {
 		return nil
 	}
 
-	// 解析包数
-	packets, err := strconv.ParseUint(fields[1], 10, 64)
-	if err != nil {
-		log.Printf("[WARN] Failed to parse packets count: %v", err)
-		packets = 0
-	}
+	// 解析包数（支持K/M/G单位）
+	packets := utils.ParsePacketCount(fields[1])
 
 	rule := &RuleInfo{
 		LineNumber:   lineNumber,
@@ -319,12 +316,8 @@ func (s *TableService) parseVerboseRuleLine(line string) *RuleInfo {
 		return nil
 	}
 
-	// 解析包数
-	packets, err := strconv.ParseUint(fields[0], 10, 64)
-	if err != nil {
-		log.Printf("[WARN] Failed to parse packets count in verbose mode: %v", err)
-		packets = 0
-	}
+	// 解析包数（支持K/M/G单位）
+	packets := utils.ParsePacketCount(fields[0])
 
 	rule := &RuleInfo{
 		LineNumber:   0, // 详细模式下没有行号

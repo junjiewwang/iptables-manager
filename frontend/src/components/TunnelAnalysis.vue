@@ -33,14 +33,21 @@
               v-model="selectedDockerBridge"
               placeholder="选择Docker网桥"
               @change="onDockerBridgeChange"
+              filterable
               style="width: 100%"
+              clearable
             >
               <el-option
                 v-for="bridge in dockerBridges"
                 :key="bridge.name"
-                :label="`${bridge.name} (${bridge.docker_type})`"
+                :label="`${bridge.name} - ${bridge.ip_address || 'N/A'}`"
                 :value="bridge.name"
-              />
+              >
+                <span style="float: left">{{ bridge.name }}</span>
+                <span style="float: right; color: #8492a6; font-size: 13px">
+                  {{ bridge.ip_address || 'N/A' }}
+                </span>
+              </el-option>
             </el-select>
           </el-col>
           <el-col :span="8">
@@ -129,7 +136,18 @@
     <!-- 通信分析结果 -->
     <el-card v-if="analysisResult" class="analysis-result-card">
       <template #header>
-        <h3>通信路径分析结果</h3>
+        <div class="analysis-result-header">
+          <h3>通信路径分析结果</h3>
+          <el-button
+            v-if="hasConnectivityIssues"
+            type="warning"
+            @click="fixConnectivityIssues"
+            :loading="fixing"
+          >
+            <el-icon><Tools /></el-icon>
+            一键修复
+          </el-button>
+        </div>
       </template>
       
       <el-tabs v-model="activeTab">
@@ -172,6 +190,62 @@
             <el-table-column prop="destination" label="目标地址" width="150" />
             <el-table-column prop="packets" label="包数" width="80" />
           </el-table>
+        </el-tab-pane>
+        
+        <el-tab-pane label="隔离规则" name="isolation">
+          <div v-if="analysisResult.isolation_rules && analysisResult.isolation_rules.length > 0">
+            <el-alert
+              v-if="hasIsolationDropRules"
+              title="检测到有效的Docker隔离规则正在阻断通信"
+              type="warning"
+              style="margin-bottom: 15px;"
+              show-icon
+            >
+              <template #default>
+                DOCKER-ISOLATION-STAGE-2链中的DROP规则正在影响隧道接口与Docker网桥的通信。
+                这些规则是Docker网络隔离机制的一部分，需要添加RETURN规则来绕过隔离限制。
+              </template>
+            </el-alert>
+            
+            <el-alert
+              v-if="!hasIsolationDropRules && analysisResult.isolation_rules && analysisResult.isolation_rules.length > 0"
+              title="Docker隔离规则配置正常"
+              type="success"
+              style="margin-bottom: 15px;"
+              show-icon
+            >
+              <template #default>
+                检测到隔离规则，但已通过RETURN规则正确配置，不会影响当前通信路径。
+              </template>
+            </el-alert>
+            
+            <el-table :data="analysisResult.isolation_rules" size="small">
+              <el-table-column prop="line_number" label="行号" width="80" />
+              <el-table-column prop="target" label="目标" width="100">
+                <template #default="scope">
+                  <el-tag 
+                    :type="scope.row.target === 'DROP' ? 'danger' : scope.row.target === 'RETURN' ? 'warning' : 'success'">
+                    {{ scope.row.target }}
+                  </el-tag>
+                  <el-tooltip 
+                    v-if="scope.row.target === 'RETURN'" 
+                    content="RETURN规则用于绕过后续的DROP规则" 
+                    placement="top"
+                  >
+                    <el-icon style="margin-left: 5px; color: #E6A23C;"><InfoFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+              </el-table-column>
+              <el-table-column prop="protocol" label="协议" width="80" />
+              <el-table-column prop="in_interface" label="入接口" width="120" />
+              <el-table-column prop="out_interface" label="出接口" width="120" />
+              <el-table-column prop="source" label="源地址" width="150" />
+              <el-table-column prop="destination" label="目标地址" width="150" />
+              <el-table-column prop="packets" label="包数" width="80" />
+              <el-table-column prop="bytes" label="字节数" width="100" />
+            </el-table>
+          </div>
+          <el-empty v-else description="未检测到相关的Docker隔离规则" />
         </el-tab-pane>
         
         <el-tab-pane label="统计信息" name="statistics">
@@ -240,105 +314,20 @@
       </el-tabs>
     </el-card>
 
-    <!-- 规则生成器 -->
-    <el-card class="rule-generator-card">
-      <template #header>
-        <h3>规则生成器</h3>
-      </template>
-      
-      <el-form :model="ruleForm" label-width="120px">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="通信方向">
-              <el-select v-model="ruleForm.direction" style="width: 100%">
-                <el-option label="双向通信" value="bidirectional" />
-                <el-option label="入站" value="inbound" />
-                <el-option label="出站" value="outbound" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="协议">
-              <el-select v-model="ruleForm.protocol" style="width: 100%">
-                <el-option label="全部" value="all" />
-                <el-option label="TCP" value="tcp" />
-                <el-option label="UDP" value="udp" />
-                <el-option label="ICMP" value="icmp" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="目标端口">
-              <el-input v-model="ruleForm.dest_port" placeholder="如: 80,443,8080-8090" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="动作">
-              <el-select v-model="ruleForm.action" style="width: 100%">
-                <el-option label="接受" value="ACCEPT" />
-                <el-option label="丢弃" value="DROP" />
-                <el-option label="拒绝" value="REJECT" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item>
-              <el-checkbox v-model="ruleForm.enable_nat">启用NAT</el-checkbox>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item>
-              <el-checkbox v-model="ruleForm.enable_logging">启用日志</el-checkbox>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        
-        <el-form-item>
-          <el-button
-            type="primary"
-            @click="generateRules"
-            :disabled="!selectedTunnelInterface || !selectedDockerBridge"
-            :loading="generating"
-          >
-            生成规则
-          </el-button>
-        </el-form-item>
-      </el-form>
-      
-      <div v-if="generatedRules.length > 0" class="generated-rules">
-        <h4>生成的规则:</h4>
-        <el-input
-          v-for="(rule, index) in generatedRules"
-          :key="index"
-          :value="rule"
-          readonly
-          style="margin-bottom: 5px;"
-        >
-          <template #append>
-            <el-button @click="copyRule(rule)">复制</el-button>
-          </template>
-        </el-input>
-      </div>
-    </el-card>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, Connection } from '@element-plus/icons-vue'
+import { Refresh, Connection, Tools, InfoFilled } from '@element-plus/icons-vue'
 import api from '@/api'
 
 // 响应式数据
 const loading = ref(false)
 const analyzing = ref(false)
-const generating = ref(false)
+const fixing = ref(false)
 const activeTab = ref('path')
 
 const tunnelInterfaces = ref([])
@@ -349,15 +338,45 @@ const selectedDockerBridge = ref('')
 const tunnelInfo = ref(null)
 const tunnelRules = ref([])
 const analysisResult = ref(null)
-const generatedRules = ref([])
 
-const ruleForm = ref({
-  direction: 'bidirectional',
-  protocol: 'all',
-  dest_port: '',
-  action: 'ACCEPT',
-  enable_nat: true,
-  enable_logging: false
+// 计算属性
+const hasConnectivityIssues = computed(() => {
+  if (!analysisResult.value) return false
+  
+  // 检查是否存在连通性问题
+  const stats = analysisResult.value.statistics
+  return stats.dropped_packets > 0 || 
+         stats.forwarded_packets === 0 ||
+         analysisResult.value.recommendations.some((rec: string) => 
+           rec.includes('连通性') || rec.includes('阻塞') || rec.includes('失败')
+         )
+})
+
+const hasIsolationDropRules = computed(() => {
+  if (!analysisResult.value || !analysisResult.value.isolation_rules) return false
+  
+  // 按行号排序规则
+  const sortedRules = [...analysisResult.value.isolation_rules].sort((a, b) => a.line_number - b.line_number)
+  
+  // 检查是否存在早期的RETURN规则
+  let hasEarlyReturn = false
+  for (const rule of sortedRules) {
+    if (rule.target === 'RETURN') {
+      hasEarlyReturn = true
+      break
+    }
+    if (rule.target === 'DROP') {
+      break // 如果先遇到DROP规则，说明没有早期RETURN
+    }
+  }
+  
+  // 如果有早期RETURN规则，则DROP规则无效
+  if (hasEarlyReturn) {
+    return false
+  }
+  
+  // 否则检查是否有DROP规则
+  return sortedRules.some((rule: any) => rule.target === 'DROP')
 })
 
 // 方法
@@ -369,7 +388,7 @@ const refreshData = async () => {
       loadDockerBridges()
     ])
     ElMessage.success('数据刷新成功')
-  } catch (error) {
+  } catch (error: any) {
     ElMessage.error('数据刷新失败: ' + error.message)
   } finally {
     loading.value = false
@@ -389,7 +408,10 @@ const loadTunnelInterfaces = async () => {
 const loadDockerBridges = async () => {
   try {
     const response = await api.get('/tunnel/docker-bridges')
-    dockerBridges.value = response.data.docker_bridges || []
+    // 仅保留类型为bridge的数据项
+    const allBridges = response.data.docker_bridges || []
+    dockerBridges.value = allBridges.filter((bridge: any) => bridge.driver === 'bridge')
+    console.log('[DEBUG] Filtered Docker bridges:', dockerBridges.value)
   } catch (error) {
     console.error('加载Docker网桥失败:', error)
     throw error
@@ -407,13 +429,84 @@ const onTunnelInterfaceChange = async () => {
     // 获取相关规则
     const rulesResponse = await api.get(`/tunnel/${selectedTunnelInterface.value}/rules`)
     tunnelRules.value = rulesResponse.data.rules || []
-  } catch (error) {
+  } catch (error: any) {
     ElMessage.error('获取隧道接口信息失败: ' + error.message)
   }
 }
 
 const onDockerBridgeChange = () => {
   // Docker网桥变化时的处理逻辑
+}
+
+const fixConnectivityIssues = async () => {
+  if (!selectedTunnelInterface.value || !selectedDockerBridge.value) {
+    ElMessage.warning('请先选择隧道接口和Docker网桥')
+    return
+  }
+  
+  fixing.value = true
+  try {
+    console.log('[修复开始] 隧道接口:', selectedTunnelInterface.value, '网桥:', selectedDockerBridge.value)
+    
+    const response = await api.post('/tunnel/fix-connectivity', {
+      tunnel_interface: selectedTunnelInterface.value,
+      docker_bridge: selectedDockerBridge.value
+    })
+    
+    const fixResult = response.data.fix_result
+    if (fixResult && fixResult.success) {
+      // 显示详细的修复结果
+      const fixedIssues = fixResult.fixed_issues || []
+      const appliedRules = fixResult.applied_rules || []
+      
+      let message = `🎉 修复成功！`
+      if (fixedIssues.length > 0) {
+        message += `共处理 ${fixedIssues.length} 个问题`
+      }
+      if (appliedRules.length > 0) {
+        message += `，应用了 ${appliedRules.length} 条iptables规则`
+      }
+      
+      ElMessage({
+        message: message,
+        type: 'success',
+        duration: 8000,
+        showClose: true
+      })
+      
+      // 在控制台显示详细信息
+      console.log('[修复成功] 修复详情:')
+      console.log('  已修复问题:', fixedIssues)
+      console.log('  应用规则:', appliedRules)
+      console.log('  修复配置:', {
+        tunnel: selectedTunnelInterface.value,
+        bridge: selectedDockerBridge.value
+      })
+      
+      // 显示修复详情的通知
+      if (fixedIssues.length > 0) {
+        const issuesList = fixedIssues.map((issue, index) => `${index + 1}. ${issue}`).join('\n')
+        ElMessage({
+          message: `修复详情:\n${issuesList}`,
+          type: 'info',
+          duration: 10000,
+          showClose: true
+        })
+      }
+    } else {
+      ElMessage.warning('修复完成，但可能存在部分问题。请检查日志获取详细信息。')
+      console.log('[修复警告] 修复结果:', fixResult)
+    }
+    
+    // 修复完成后重新分析
+    console.log('[修复完成] 开始重新分析连通性...')
+    await analyzeConnection()
+  } catch (error: any) {
+    console.error('[修复失败] 错误详情:', error)
+    ElMessage.error('修复失败: ' + error.message)
+  } finally {
+    fixing.value = false
+  }
 }
 
 const analyzeConnection = async () => {
@@ -432,43 +525,14 @@ const analyzeConnection = async () => {
     })
     analysisResult.value = response.data.analysis
     ElMessage.success('通信路径分析完成')
-  } catch (error) {
+  } catch (error: any) {
     ElMessage.error('分析失败: ' + error.message)
   } finally {
     analyzing.value = false
   }
 }
 
-const generateRules = async () => {
-  if (!selectedTunnelInterface.value || !selectedDockerBridge.value) {
-    ElMessage.warning('请先选择隧道接口和Docker网桥')
-    return
-  }
-  
-  generating.value = true
-  try {
-    const response = await api.post('/tunnel/generate-rules', {
-      tunnel_interface: selectedTunnelInterface.value,
-      docker_bridge: selectedDockerBridge.value,
-      ...ruleForm.value
-    })
-    generatedRules.value = response.data.generated_rules || []
-    ElMessage.success('规则生成成功')
-  } catch (error) {
-    ElMessage.error('规则生成失败: ' + error.message)
-  } finally {
-    generating.value = false
-  }
-}
 
-const copyRule = async (rule: string) => {
-  try {
-    await navigator.clipboard.writeText(rule)
-    ElMessage.success('规则已复制到剪贴板')
-  } catch (error) {
-    ElMessage.error('复制失败')
-  }
-}
 
 // 生命周期
 onMounted(() => {
@@ -503,8 +567,10 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-.rule-generator-card {
-  margin-bottom: 20px;
+.analysis-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .communication-path {
@@ -514,17 +580,5 @@ onMounted(() => {
 .statistics-section {
   border-top: 1px solid #ebeef5;
   padding-top: 20px;
-}
-
-.generated-rules {
-  margin-top: 20px;
-  padding: 20px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-}
-
-.generated-rules h4 {
-  margin-bottom: 15px;
-  color: #303133;
 }
 </style>

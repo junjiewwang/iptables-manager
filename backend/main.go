@@ -141,6 +141,7 @@ func main() {
 			auth.GET("/tunnel/:interface_name/statistics", tunnelController.GetTunnelStatistics)
 			auth.GET("/tunnel/analyze-communication", tunnelController.AnalyzeTunnelDockerCommunication)
 			auth.POST("/tunnel/generate-rules", tunnelController.GenerateTunnelDockerRules)
+			auth.POST("/tunnel/fix-connectivity", tunnelController.FixConnectivity)
 
 			// 测试规则（模拟）
 			auth.POST("/test-rule", func(c *gin.Context) {

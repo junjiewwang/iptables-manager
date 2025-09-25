@@ -168,7 +168,7 @@ func (tc *TunnelController) GetTunnelInterfaces(c *gin.Context) {
 
 // GetDockerBridges 获取所有Docker网桥列表
 // @Summary 获取所有Docker网桥列表
-// @Description 获取系统中所有的Docker网桥接口列表
+// @Description 获取系统中所有的Docker网桥接口列表，包含IP地址信息
 // @Tags tunnel
 // @Accept json
 // @Produce json
@@ -176,19 +176,12 @@ func (tc *TunnelController) GetTunnelInterfaces(c *gin.Context) {
 // @Failure 500 {object} map[string]interface{} "服务器内部错误"
 // @Router /api/tunnel/docker-bridges [get]
 func (tc *TunnelController) GetDockerBridges(c *gin.Context) {
-	interfaces, err := tc.networkService.GetAllInterfaces()
+	dockerBridges, err := tc.networkService.GetDockerBridges()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "获取网络接口失败: " + err.Error(),
+			"error": "获取Docker网桥失败: " + err.Error(),
 		})
 		return
-	}
-
-	var dockerBridges []models.NetworkInterface
-	for _, iface := range interfaces {
-		if iface.IsDocker {
-			dockerBridges = append(dockerBridges, iface)
-		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -396,4 +389,51 @@ func (tc *TunnelController) GetTunnelStatistics(c *gin.Context) {
 		"success":    true,
 		"statistics": statistics,
 	})
+}
+
+// FixConnectivity 修复隧道接口与Docker网桥的连通性问题
+// @Summary 修复隧道接口与Docker网桥的连通性问题
+// @Description 自动检测并修复隧道接口与Docker网桥之间的连通性问题
+// @Tags tunnel
+// @Accept json
+// @Produce json
+// @Param request body FixConnectivityRequest true "修复连通性请求"
+// @Success 200 {object} map[string]interface{} "成功返回修复结果"
+// @Failure 400 {object} map[string]interface{} "请求参数错误"
+// @Failure 500 {object} map[string]interface{} "服务器内部错误"
+// @Router /api/tunnel/fix-connectivity [post]
+func (tc *TunnelController) FixConnectivity(c *gin.Context) {
+	var request FixConnectivityRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "请求参数格式错误: " + err.Error(),
+		})
+		return
+	}
+
+	if request.TunnelInterface == "" || request.DockerBridge == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "隧道接口和Docker网桥名称不能为空",
+		})
+		return
+	}
+
+	result, err := tc.networkService.FixConnectivity(request.TunnelInterface, request.DockerBridge)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "修复连通性失败: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"result":  result,
+	})
+}
+
+// FixConnectivityRequest 修复连通性请求
+type FixConnectivityRequest struct {
+	TunnelInterface string `json:"tunnel_interface" binding:"required"`
+	DockerBridge    string `json:"docker_bridge" binding:"required"`
 }
