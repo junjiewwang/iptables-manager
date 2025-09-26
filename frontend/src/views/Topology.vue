@@ -58,6 +58,8 @@
         <el-button @click="fitView" size="small" :icon="FullScreen">适应画布</el-button>
         <el-button @click="autoOptimizeLayout" size="small" type="primary" :icon="Star">智能优化</el-button>
         <el-button @click="optimizeArrowPositions" size="small" type="success" :icon="Position">优化箭头</el-button>
+            <el-button @click="standardizeConnectionPaths" size="small" type="info" :icon="Position">标准化路径</el-button>
+            <el-button @click="fixKeyConnections" size="small" type="warning" :icon="Tools">修复关键连接</el-button>
         <el-button @click="detectDenseAreas" size="small" type="warning" :icon="Search">检测密集区域</el-button>
         <el-button 
           @click="manualAdjustMode ? disableManualAdjust() : enableManualAdjust()" 
@@ -396,8 +398,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Refresh, FullScreen, Download, Star, Position, Search, Close, Edit, DocumentCopy } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Refresh, FullScreen, Download, Star, Position, Search, Close, Edit, DocumentCopy, Tools } from '@element-plus/icons-vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -437,14 +439,14 @@ const { fitView } = useVueFlow()
 
 // 计算属性
 const chainNodes = computed(() => {
-  return flowElements.value.filter((el: Node | Edge) => 
-    'type' in el && (el as Node).type === 'chain'
+  return flowElements.value.filter((el: any) => 
+    'type' in el && el.type === 'chain'
   ) as Node[]
 })
 
 const interfaceNodes = computed(() => {
-  return flowElements.value.filter((el: Node | Edge) => 
-    'type' in el && (el as Node).type === 'interface'
+  return flowElements.value.filter((el: any) => 
+    'type' in el && el.type === 'interface'
   ) as Node[]
 })
 
@@ -566,19 +568,13 @@ const initializeFlowElements = () => {
   ]
 
   const edges: Edge[] = [
-    // 主要数据流路径 - 智能连接路径优化，消除节点遮挡
+    // 主要数据流路径 - 优化连接路径，使用最直接的直线连接
     {
       id: 'e1',
       source: 'interface-external',
       target: 'prerouting',
-      type: 'smoothstep', // 使用智能步进连接，确保水平直线
+      type: 'straight', // 使用直线连接，避免不必要的拐点
       animated: selectedFlow.value === 'forward' || selectedFlow.value === 'input',
-      pathOptions: {
-        borderRadius: 8,
-        offset: 20, // 增加偏移避免节点遮挡
-        centerX: 0.5, // 水平居中连接
-        centerY: 0.5  // 垂直居中连接
-      },
       style: { 
         stroke: '#409EFF', 
         strokeWidth: selectedFlow.value === 'forward' || selectedFlow.value === 'input' ? 6 : 4,
@@ -594,7 +590,7 @@ const initializeFlowElements = () => {
         height: 24,
         strokeWidth: 2,
         markerUnits: 'userSpaceOnUse', // 使用绝对单位避免缩放问题
-        orient: 'auto-start-reverse' // 智能箭头方向
+        orient: 'auto' // 自动箭头方向
       },
       label: '入站数据包',
       labelStyle: { 
@@ -606,8 +602,6 @@ const initializeFlowElements = () => {
       labelBgStyle: { 
         fill: 'rgba(255, 255, 255, 0.95)', 
         fillOpacity: 0.95,
-        rx: 6,
-        ry: 6,
         stroke: '#409EFF',
         strokeWidth: 1,
         strokeOpacity: 0.3
@@ -623,14 +617,8 @@ const initializeFlowElements = () => {
       id: 'e2',
       source: 'prerouting',
       target: 'routing-decision',
-      type: 'smoothstep', // 智能步进连接
+      type: 'straight', // 使用直线连接，避免不必要的拐点
       animated: selectedFlow.value === 'forward' || selectedFlow.value === 'input',
-      pathOptions: {
-        borderRadius: 6,
-        offset: 15,
-        centerX: 0.5,
-        centerY: 0.5
-      },
       style: { 
         stroke: '#409EFF', 
         strokeWidth: selectedFlow.value === 'forward' || selectedFlow.value === 'input' ? 6 : 4,
@@ -647,7 +635,7 @@ const initializeFlowElements = () => {
         height: 24,
         strokeWidth: 2,
         markerUnits: 'userSpaceOnUse',
-        orient: 'auto-start-reverse'
+        orient: 'auto'
       },
       data: {
         protocol: 'all',
@@ -966,15 +954,30 @@ const initializeFlowElements = () => {
 
 // 事件处理
 const onViewModeChange = (mode: 'flow' | 'chain') => {
+  // 保存当前布局状态
+  saveCurrentLayoutState()
+  
   viewMode.value = mode
   if (mode === 'chain') {
     initializeFlowElements()
+    // 恢复保存的布局状态
+    nextTick(() => {
+      restoreLayoutState()
+    })
   }
 }
 
 const onFlowChange = (flow: string) => {
+  // 保存当前布局状态
+  saveCurrentLayoutState()
+  
   selectedFlow.value = flow
   initializeFlowElements() // 重新初始化以更新动画状态
+  
+  // 恢复保存的布局状态
+  nextTick(() => {
+    restoreLayoutState()
+  })
 }
 
 const onNodeClick = (event: any) => {
@@ -1356,6 +1359,64 @@ const loadLayoutConfiguration = () => {
     }
   } catch (error) {
     console.warn('加载布局配置失败:', error)
+  }
+}
+
+// 保存当前布局状态
+const saveCurrentLayoutState = () => {
+  try {
+    const layoutState = {
+      nodePositions: {},
+      edgeStyles: {},
+      viewMode: viewMode.value,
+      selectedFlow: selectedFlow.value,
+      timestamp: Date.now()
+    }
+    
+    // 保存节点位置
+    flowElements.value.forEach((el: any) => {
+      if ('position' in el) {
+        layoutState.nodePositions[el.id] = { ...el.position }
+      } else if ('style' in el) {
+        layoutState.edgeStyles[el.id] = { ...el.style }
+      }
+    })
+    
+    localStorage.setItem('topology-layout-state', JSON.stringify(layoutState))
+  } catch (error) {
+    console.warn('保存布局状态失败:', error)
+  }
+}
+
+// 恢复布局状态
+const restoreLayoutState = () => {
+  try {
+    const savedState = localStorage.getItem('topology-layout-state')
+    if (savedState) {
+      const state = JSON.parse(savedState)
+      
+      // 恢复节点位置
+      if (state.nodePositions) {
+        flowElements.value.forEach((el: any) => {
+          if ('position' in el && state.nodePositions[el.id]) {
+            el.position = { ...state.nodePositions[el.id] }
+          }
+        })
+      }
+      
+      // 恢复边样式
+      if (state.edgeStyles) {
+        flowElements.value.forEach((el: any) => {
+          if ('source' in el && state.edgeStyles[el.id]) {
+            el.style = { ...el.style, ...state.edgeStyles[el.id] }
+          }
+        })
+      }
+      
+      console.log('布局状态已恢复')
+    }
+  } catch (error) {
+    console.warn('恢复布局状态失败:', error)
   }
 }
 
@@ -2102,66 +2163,71 @@ const calculateOptimalPath = (sourceNode: any, targetNode: any, allNodes: any[],
   const dy = targetNode.position.y - sourceNode.position.y
   const distance = Math.sqrt(dx * dx + dy * dy)
   
-  // 判断连接类型
-  let connectionType = 'smoothstep'
-  let pathOptions: any = {
-    borderRadius: 8,
-    offset: 15,
-    centerX: 0.5,
-    centerY: 0.5
-  }
+  // 优先使用直线连接，确保一致性
+  let connectionType = 'straight'
+  let pathOptions: any = {}
   
-  // 水平连接（左右节点）
-  if (Math.abs(dy) < 50 && Math.abs(dx) > 100) {
-    connectionType = 'smoothstep'
-    pathOptions = {
-      borderRadius: 6,
-      offset: 20,
-      centerX: 0.5,
-      centerY: 0.5
+  // 检查是否为关键连接（外部网络→PREROUTING，PREROUTING→路由决策）
+  const isKeyConnection = (
+    (sourceNode.id === 'interface-external' && targetNode.id === 'prerouting') ||
+    (sourceNode.id === 'prerouting' && targetNode.id === 'routing-decision')
+  )
+  
+  // 关键连接始终保持直线，不进行避让优化
+  if (isKeyConnection) {
+    connectionType = 'straight'
+    pathOptions = {} // 清空路径选项，使用默认直线
+  } else {
+    // 检测是否需要避让其他节点
+    const needsAvoidance = checkNodeAvoidance(sourceNode, targetNode, allNodes)
+    
+    // 只有在必须避让时才使用曲线连接
+    if (needsAvoidance) {
+      connectionType = 'smoothstep'
+    
+      // 水平连接（左右节点）
+      if (Math.abs(dy) < 50 && Math.abs(dx) > 100) {
+        pathOptions = {
+          borderRadius: 6,
+          offset: 25, // 增加偏移避让节点
+          centerX: 0.5,
+          centerY: 0.5
+        }
+      }
+      // 垂直连接（上下节点）
+      else if (Math.abs(dx) < 50 && Math.abs(dy) > 80) {
+        pathOptions = {
+          borderRadius: 10,
+          offset: 30,
+          centerX: 0.5,
+          centerY: 0.5
+        }
+      }
+      // 对角线连接
+      else {
+        pathOptions = {
+          borderRadius: 12,
+          offset: Math.max(25, distance / 8),
+          centerX: dx > 0 ? 0.3 : 0.7,
+          centerY: dy > 0 ? 0.3 : 0.7
+        }
+      }
     }
   }
-  // 垂直连接（上下节点）
-  else if (Math.abs(dx) < 50 && Math.abs(dy) > 80) {
-    connectionType = 'smoothstep'
-    pathOptions = {
-      borderRadius: 10,
-      offset: 25,
-      centerX: 0.5,
-      centerY: 0.5
-    }
-  }
-  // 对角线连接
-  else if (Math.abs(dx) > 100 && Math.abs(dy) > 80) {
-    connectionType = 'smoothstep'
-    pathOptions = {
-      borderRadius: 12,
-      offset: Math.max(20, distance / 10),
-      centerX: dx > 0 ? 0.3 : 0.7,
-      centerY: dy > 0 ? 0.3 : 0.7
-    }
-  }
   
-  // 检测是否需要避让其他节点
-  const needsAvoidance = checkNodeAvoidance(sourceNode, targetNode, allNodes)
-  if (needsAvoidance) {
-    pathOptions.offset = Math.max(pathOptions.offset, 30)
-    pathOptions.borderRadius = Math.max(pathOptions.borderRadius, 15)
-  }
-  
-  // 计算箭头大小
-  let arrowSize = 22
+  // 计算箭头大小 - 统一标准
+  let arrowSize = 24 // 默认大小
   if (distance < 150) {
-    arrowSize = 18
+    arrowSize = 20
   } else if (distance > 300) {
-    arrowSize = 26
+    arrowSize = 28
   }
   
   // 计算Z-index层级
   const zIndex = calculateEdgeZIndex(sourceNode, targetNode, allEdges)
   
   return {
-    needsOptimization: true,
+    needsOptimization: needsAvoidance, // 只有需要避让时才标记为需要优化
     connectionType,
     pathOptions,
     arrowSize,
@@ -2364,13 +2430,13 @@ const calculateOptimalConnectionPaths = (nodes: any[], edges: any[]) => {
   return optimizations
 }
 
-// 计算最佳路径
+// 计算最佳路径 - 统一标准化处理
 const calculateBestPath = (sourceNode: any, targetNode: any, allNodes: any[], allEdges: any[]) => {
   const dx = targetNode.position.x - sourceNode.position.x
   const dy = targetNode.position.y - sourceNode.position.y
   const distance = Math.sqrt(dx * dx + dy * dy)
   
-  // 保持连线最短原则
+  // 统一使用直线连接作为默认选择
   let pathType = 'straight'
   let controlPoints: any[] = []
   let quality = 100
@@ -2379,19 +2445,15 @@ const calculateBestPath = (sourceNode: any, targetNode: any, allNodes: any[], al
   const obstacles = findObstacleNodes(sourceNode, targetNode, allNodes)
   
   if (obstacles.length > 0) {
-    // 计算避让路径
+    // 只有在必须避让时才使用曲线路径
     const avoidancePath = calculateAvoidancePath(sourceNode, targetNode, obstacles)
     pathType = avoidancePath.type
     controlPoints = avoidancePath.controlPoints
     quality = avoidancePath.quality
-  } else if (distance < 120) {
-    // 短距离连接使用直线
-    pathType = 'straight'
-    quality = 95
   } else {
-    // 长距离连接使用平滑曲线
-    pathType = 'smoothstep'
-    quality = 90
+    // 所有无障碍连接统一使用直线，确保一致性
+    pathType = 'straight'
+    quality = 100 // 直线连接质量最高
   }
   
   return {
@@ -2399,8 +2461,91 @@ const calculateBestPath = (sourceNode: any, targetNode: any, allNodes: any[], al
     controlPoints,
     quality,
     distance,
-    needsOptimization: quality < 85
+    needsOptimization: obstacles.length > 0 // 只有有障碍时才需要优化
   }
+}
+
+// 修复关键连接路径
+const fixKeyConnections = () => {
+  const edges = flowElements.value.filter((el: any) => 'source' in el)
+  
+  edges.forEach((edge: any) => {
+    // 检查是否为关键连接（外部网络→PREROUTING，PREROUTING→路由决策）
+    const isKeyConnection = (
+      (edge.source === 'interface-external' && edge.target === 'prerouting') ||
+      (edge.source === 'prerouting' && edge.target === 'routing-decision')
+    )
+    
+    if (isKeyConnection) {
+      // 强制设置为直线连接
+      edge.type = 'straight'
+      
+      // 移除所有可能导致弯曲的路径选项
+      delete edge.pathOptions
+      delete edge.curvature
+      
+      // 确保箭头正确显示
+      if (edge.markerEnd) {
+        edge.markerEnd.orient = 'auto'
+        edge.markerEnd.markerUnits = 'userSpaceOnUse'
+        edge.markerEnd.refX = 0
+        edge.markerEnd.refY = 0
+      }
+      
+      // 重置样式
+      edge.style = {
+        ...edge.style,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round'
+      }
+    }
+  })
+  
+  ElMessage.success('关键连接路径已修复为直线')
+}
+
+// 标准化连接路径处理
+const standardizeConnectionPaths = () => {
+  // 首先修复关键连接
+  fixKeyConnections()
+  
+  const edges = flowElements.value.filter((el: any) => 'source' in el)
+  const nodes = flowElements.value.filter((el: any) => 'position' in el)
+  
+  edges.forEach((edge: any) => {
+    const sourceNode = nodes.find(n => n.id === edge.source)
+    const targetNode = nodes.find(n => n.id === edge.target)
+    
+    if (sourceNode && targetNode) {
+      // 检查是否为关键连接（外部网络→PREROUTING，PREROUTING→路由决策）
+      const isKeyConnection = (
+        (edge.source === 'interface-external' && edge.target === 'prerouting') ||
+        (edge.source === 'prerouting' && edge.target === 'routing-decision')
+      )
+      
+      if (isKeyConnection) {
+        // 关键连接强制使用直线
+        edge.type = 'straight'
+        delete edge.pathOptions // 移除路径选项，使用默认直线
+        
+        // 确保箭头指向正确
+        if (edge.markerEnd) {
+          edge.markerEnd.orient = 'auto'
+          edge.markerEnd.markerUnits = 'userSpaceOnUse'
+          edge.markerEnd.refX = 0 // 重置箭头位置
+        }
+        
+        // 重置样式确保直线显示
+        edge.style = {
+          ...edge.style,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round'
+        }
+      }
+    }
+  })
+  
+  ElMessage.success('连接路径已标准化，关键连接使用直线路径')
 }
 
 // 查找障碍节点
@@ -2615,13 +2760,33 @@ const adjustNodesForBetterLayout = (nodes: Node[], edges: Edge[]) => {
 }
 
 const resetView = () => {
-  selectedFlow.value = ''
-  selectedNodeInfo.value = null
-  protocolFilter.value = ''
-  portFilter.value = ''
-  initializeFlowElements()
-  nextTick(() => {
-    fitView()
+  // 询问用户是否确认重置布局
+  ElMessageBox.confirm(
+    '重置视图将清除所有自定义布局设置，是否继续？',
+    '确认重置',
+    {
+      confirmButtonText: '确认重置',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  ).then(() => {
+    // 清除保存的布局状态
+    localStorage.removeItem('topology-layout-state')
+    localStorage.removeItem('topology-node-positions')
+    localStorage.removeItem('topology-layout-config')
+    
+    selectedFlow.value = ''
+    selectedNodeInfo.value = null
+    protocolFilter.value = ''
+    portFilter.value = ''
+    initializeFlowElements()
+    nextTick(() => {
+      fitView()
+    })
+    
+    ElMessage.success('视图已重置到默认状态')
+  }).catch(() => {
+    ElMessage.info('已取消重置操作')
   })
 }
 
