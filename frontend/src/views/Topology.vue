@@ -8,64 +8,64 @@
           <el-radio-button label="flow">数据流视图</el-radio-button>
           <el-radio-button label="chain">链路架构</el-radio-button>
         </el-radio-group>
-        
-        <el-divider direction="vertical" />
-        
+
+        <el-divider direction="vertical"/>
+
         <!-- 数据流选择 -->
-        <el-select 
-          v-model="selectedFlow" 
-          placeholder="选择数据流" 
-          size="small" 
-          style="width: 150px"
-          clearable
-          @change="onFlowChange"
+        <el-select
+            v-model="selectedFlow"
+            placeholder="选择数据流"
+            size="small"
+            style="width: 150px"
+            clearable
+            @change="onFlowChange"
         >
-          <el-option label="转发流量" value="forward" />
-          <el-option label="本地入站" value="input" />
-          <el-option label="本地出站" value="output" />
+          <el-option label="转发流量" value="forward"/>
+          <el-option label="本地入站" value="input"/>
+          <el-option label="本地出站" value="output"/>
         </el-select>
-        
-        <el-divider direction="vertical" />
-        
+
+        <el-divider direction="vertical"/>
+
         <!-- 过滤控件 -->
-        <el-select 
-          v-model="protocolFilter" 
-          placeholder="协议过滤" 
-          size="small" 
-          style="width: 120px"
-          clearable
-          @change="applyFilters"
+        <el-select
+            v-model="protocolFilter"
+            placeholder="协议过滤"
+            size="small"
+            style="width: 120px"
+            clearable
+            @change="applyFilters"
         >
-          <el-option label="全部" value="" />
-          <el-option label="TCP" value="tcp" />
-          <el-option label="UDP" value="udp" />
-          <el-option label="ICMP" value="icmp" />
+          <el-option label="全部" value=""/>
+          <el-option label="TCP" value="tcp"/>
+          <el-option label="UDP" value="udp"/>
+          <el-option label="ICMP" value="icmp"/>
         </el-select>
-        
-        <el-input 
-          v-model="portFilter" 
-          placeholder="端口过滤" 
-          size="small" 
-          style="width: 100px"
-          clearable
-          @input="applyFilters"
+
+        <el-input
+            v-model="portFilter"
+            placeholder="端口过滤"
+            size="small"
+            style="width: 100px"
+            clearable
+            @input="applyFilters"
         />
-        
-        <el-divider direction="vertical" />
-        
+
+        <el-divider direction="vertical"/>
+
         <!-- 控制按钮 -->
         <el-button @click="resetView" size="small" :icon="Refresh">重置视图</el-button>
         <el-button @click="fitView" size="small" :icon="FullScreen">适应画布</el-button>
-        <el-button @click="autoOptimizeLayout" size="small" type="primary" :icon="Star">智能优化</el-button>
+
         <el-button @click="optimizeArrowPositions" size="small" type="success" :icon="Position">优化箭头</el-button>
-            <el-button @click="standardizeConnectionPaths" size="small" type="info" :icon="Position">标准化路径</el-button>
-            <el-button @click="fixKeyConnections" size="small" type="warning" :icon="Tools">修复关键连接</el-button>
+        <el-button @click="standardizeConnectionPaths" size="small" type="info" :icon="Position">标准化路径</el-button>
+        <el-button @click="optimizeConnectionAvoidance" size="small" type="success" :icon="Share">连线避让</el-button>
         <el-button @click="detectDenseAreas" size="small" type="warning" :icon="Search">检测密集区域</el-button>
-        <el-button 
-          @click="manualAdjustMode ? disableManualAdjust() : enableManualAdjust()" 
-          size="small" 
-          :type="manualAdjustMode ? 'danger' : 'info'"
-          :icon="manualAdjustMode ? Close : Edit"
+        <el-button
+            @click="manualAdjustMode ? disableManualAdjust() : enableManualAdjust()"
+            size="small"
+            :type="manualAdjustMode ? 'danger' : 'info'"
+            :icon="manualAdjustMode ? Close : Edit"
         >
           {{ manualAdjustMode ? '退出调整' : '手动调整' }}
         </el-button>
@@ -102,7 +102,7 @@
                 <span>本地进程</span>
               </div>
             </div>
-            
+
             <!-- 连接类型图例 -->
             <div class="legend-section">
               <h4>数据流类型</h4>
@@ -123,7 +123,7 @@
                 <span>返回路径</span>
               </div>
             </div>
-            
+
             <!-- 表处理顺序 -->
             <div class="legend-section">
               <h4>表处理顺序</h4>
@@ -161,12 +161,12 @@
                 {{ selectedNodeInfo.data.chainType }}
               </el-descriptions-item>
               <el-descriptions-item v-if="selectedNodeInfo.data?.tables" label="包含表">
-                <el-tag 
-                  v-for="table in selectedNodeInfo.data.tables" 
-                  :key="table" 
-                  size="small" 
-                  :type="getTableTagType(table)"
-                  style="margin-right: 4px;"
+                <el-tag
+                    v-for="table in selectedNodeInfo.data.tables"
+                    :key="table"
+                    size="small"
+                    :type="getTableTagType(table)"
+                    style="margin-right: 4px;"
                 >
                   {{ table }}
                 </el-tag>
@@ -207,53 +207,53 @@
       <div class="topology-main">
         <div class="vue-flow-container" v-loading="loading" element-loading-text="加载拓扑图数据...">
           <VueFlow
-            v-model="flowElements"
-            class="iptables-flow"
-            :default-viewport="{ zoom: 0.8 }"
-            :min-zoom="0.2"
-            :max-zoom="3"
-            :snap-to-grid="true"
-            :snap-grid="[15, 15]"
-            :fit-view-on-init="true"
-            :nodes-draggable="true"
-            :edges-updatable="false"
-            :nodes-connectable="false"
-            :delete-key-code="null"
-            @node-click="onNodeClick"
-            @edge-click="onEdgeClick"
-            @edge-double-click="onEdgeDoubleClick"
-            @edge-context-menu="onEdgeContextMenu"
-            @node-drag-stop="onNodeDragStop"
-            @node-mouse-enter="onNodeMouseEnter"
-            @node-mouse-leave="onNodeMouseLeave"
-            @edge-mouse-enter="onEdgeMouseEnter"
-            @edge-mouse-leave="onEdgeMouseLeave"
+              v-model="flowElements"
+              class="iptables-flow"
+              :default-viewport="{ zoom: 0.8 }"
+              :min-zoom="0.2"
+              :max-zoom="3"
+              :snap-to-grid="true"
+              :snap-grid="[15, 15]"
+              :fit-view-on-init="true"
+              :nodes-draggable="true"
+              :edges-updatable="false"
+              :nodes-connectable="false"
+              :delete-key-code="null"
+              @node-click="onNodeClick"
+              @edge-click="onEdgeClick"
+              @edge-double-click="onEdgeDoubleClick"
+              @edge-context-menu="onEdgeContextMenu"
+              @node-drag-stop="onNodeDragStop"
+              @node-mouse-enter="onNodeMouseEnter"
+              @node-mouse-leave="onNodeMouseLeave"
+              @edge-mouse-enter="onEdgeMouseEnter"
+              @edge-mouse-leave="onEdgeMouseLeave"
           >
             <!-- SVG渐变定义 -->
             <defs>
               <linearGradient id="forward-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#FF5722;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#FF9800;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#FF5722;stop-opacity:1"/>
+                <stop offset="100%" style="stop-color:#FF9800;stop-opacity:1"/>
               </linearGradient>
               <linearGradient id="input-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#8BC34A;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1"/>
+                <stop offset="100%" style="stop-color:#8BC34A;stop-opacity:1"/>
               </linearGradient>
               <linearGradient id="output-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#2196F3;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#03A9F4;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#2196F3;stop-opacity:1"/>
+                <stop offset="100%" style="stop-color:#03A9F4;stop-opacity:1"/>
               </linearGradient>
             </defs>
-            
+
             <!-- 背景网格 -->
-            <Background pattern-color="#e2e8f0" :gap="20" />
-            
+            <Background pattern-color="#e2e8f0" :gap="20"/>
+
             <!-- 控制面板 -->
-            <Controls />
-            
+            <Controls/>
+
             <!-- 小地图 -->
-            <MiniMap />
-            
+            <MiniMap/>
+
             <!-- 自定义节点模板 -->
             <template #node-chain="{ data, id }">
               <div class="chain-node" :class="[data.chainType, { highlighted: highlightedElements.has(id) }]">
@@ -261,11 +261,11 @@
                   <h3 class="chain-title">{{ data.label }}</h3>
                 </div>
                 <div class="chain-tables">
-                  <span 
-                    v-for="table in data.tables" 
-                    :key="table"
-                    class="table-tag"
-                    :class="table"
+                  <span
+                      v-for="table in data.tables"
+                      :key="table"
+                      class="table-tag"
+                      :class="table"
                   >
                     {{ table }}
                   </span>
@@ -276,7 +276,7 @@
                 </div>
               </div>
             </template>
-            
+
             <template #node-interface="{ data, id }">
               <div class="interface-node" :class="[data.interfaceType, { highlighted: highlightedElements.has(id) }]">
                 <div class="interface-icon">
@@ -288,14 +288,14 @@
                 </div>
               </div>
             </template>
-            
+
             <template #node-decision="{ data, id }">
               <div class="decision-node" :class="{ highlighted: highlightedElements.has(id) }">
                 <div class="decision-icon">🔀</div>
                 <div class="decision-label">{{ data.label }}</div>
               </div>
             </template>
-            
+
             <template #node-process="{ data, id }">
               <div class="process-node" :class="{ highlighted: highlightedElements.has(id) }">
                 <div class="process-icon">⚙️</div>
@@ -314,10 +314,10 @@
 
     <!-- 节点详情对话框 -->
     <el-dialog
-      v-model="nodeDetailVisible"
-      :title="selectedNode ? `${selectedNode.label} - 详细信息` : '节点详情'"
-      width="600px"
-      :close-on-click-modal="false"
+        v-model="nodeDetailVisible"
+        :title="selectedNode ? `${selectedNode.label} - 详细信息` : '节点详情'"
+        width="600px"
+        :close-on-click-modal="false"
     >
       <div v-if="selectedNode" class="node-detail-content">
         <el-descriptions :column="2" border>
@@ -359,10 +359,10 @@
         <div v-if="selectedNode.properties" class="node-properties">
           <h4>属性信息</h4>
           <el-descriptions :column="1" border>
-            <el-descriptions-item 
-              v-for="(value, key) in selectedNode.properties" 
-              :key="key"
-              :label="key"
+            <el-descriptions-item
+                v-for="(value, key) in selectedNode.properties"
+                :key="key"
+                :label="key"
             >
               {{ value }}
             </el-descriptions-item>
@@ -373,20 +373,20 @@
 
     <!-- 错误提示对话框 -->
     <el-dialog
-      v-model="errorDialogVisible"
-      title="数据加载错误"
-      width="400px"
-      :close-on-click-modal="false"
+        v-model="errorDialogVisible"
+        title="数据加载错误"
+        width="400px"
+        :close-on-click-modal="false"
     >
       <div class="error-content">
         <el-alert
-          :title="errorMessage"
-          type="error"
-          :description="errorDetails"
-          show-icon
-          :closable="false"
+            :title="errorMessage"
+            type="error"
+            :description="errorDetails"
+            show-icon
+            :closable="false"
         />
-        
+
         <div class="error-actions">
           <el-button @click="retryLoadData" type="primary">重试</el-button>
           <el-button @click="goToDashboard">返回首页</el-button>
@@ -397,15 +397,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, FullScreen, Download, Star, Position, Search, Close, Edit, DocumentCopy, Tools } from '@element-plus/icons-vue'
-import { VueFlow, useVueFlow } from '@vue-flow/core'
-import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
-import { MiniMap } from '@vue-flow/minimap'
-import type { Node, Edge, Elements } from '@vue-flow/core'
-import { MarkerType } from '@vue-flow/core'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import {ElMessage, ElMessageBox} from 'element-plus'
+import {Close, DocumentCopy, Download, Edit, FullScreen, Position, Refresh, Search, Share, Star} from '@element-plus/icons-vue'
+import type {Edge, Elements, Node} from '@vue-flow/core'
+import {MarkerType, useVueFlow, VueFlow} from '@vue-flow/core'
+import {Background} from '@vue-flow/background'
+import {Controls} from '@vue-flow/controls'
+import {MiniMap} from '@vue-flow/minimap'
 
 // 导入样式
 import '@vue-flow/core/dist/style.css'
@@ -435,18 +434,18 @@ const portFilter = ref<string>('')
 
 // Vue Flow 相关
 const flowElements = ref<Elements>([])
-const { fitView } = useVueFlow()
+const {fitView} = useVueFlow()
 
 // 计算属性
 const chainNodes = computed(() => {
-  return flowElements.value.filter((el: any) => 
-    'type' in el && el.type === 'chain'
+  return flowElements.value.filter((el: any) =>
+      'type' in el && el.type === 'chain'
   ) as Node[]
 })
 
 const interfaceNodes = computed(() => {
-  return flowElements.value.filter((el: any) => 
-    'type' in el && el.type === 'interface'
+  return flowElements.value.filter((el: any) =>
+      'type' in el && el.type === 'interface'
   ) as Node[]
 })
 
@@ -457,19 +456,48 @@ onMounted(() => {
     loadNodePositions()
     loadLayoutConfiguration()
     loadArrowAdjustments()
-    initializeConnectionQuality()
   })
 })
 
-// 初始化流程图元素
+// 预设布局配置 - 基于参考图片的精确拓扑结构
+const PRESET_LAYOUT = {
+  nodePositions: {
+    'interface-external': { x: 50, y: 250 },
+    'interface-internal': { x: 950, y: 250 },
+    'prerouting': { x: 200, y: 250 },
+    'routing-decision': { x: 380, y: 250 },
+    'input': { x: 550, y: 120 },
+    'forward': { x: 550, y: 250 },
+    'output': { x: 550, y: 380 },
+    'postrouting': { x: 750, y: 280 },
+    'local-process': { x: 750, y: 120 }
+  }
+}
+
+// 应用预设布局
+const applyPresetLayout = () => {
+  const nodes = flowElements.value.filter((el: any) => 'type' in el)
+  
+  nodes.forEach((node: any) => {
+    const presetPosition = PRESET_LAYOUT.nodePositions[node.id]
+    if (presetPosition) {
+      node.position = { ...presetPosition }
+    }
+  })
+  
+  // 保存预设布局到本地存储
+  localStorage.setItem('topology-preset-layout', JSON.stringify(PRESET_LAYOUT))
+}
+
+// 初始化流程图元素 - 基于参考图片的精确拓扑结构
 const initializeFlowElements = () => {
   const nodes: Node[] = [
-    // 网络接口节点 - 优化布局，增加间距
+    // 网络接口节点 - 严格按照图片布局
     {
       id: 'interface-external',
       type: 'interface',
-      position: { x: 50, y: 300 },
-      data: { 
+      position: {x: 50, y: 250}, // 左侧外部网络
+      data: {
         label: '外部网络',
         interfaceType: 'external'
       },
@@ -477,20 +505,20 @@ const initializeFlowElements = () => {
     },
     {
       id: 'interface-internal',
-      type: 'interface', 
-      position: { x: 1100, y: 300 },
-      data: { 
+      type: 'interface',
+      position: {x: 950, y: 250}, // 右侧内部网络
+      data: {
         label: '内部网络',
         interfaceType: 'internal'
       },
       draggable: true
     },
-    
-    // IPTables链节点 - 重新布局，增加层次感
+
+    // IPTables链节点 - 严格按照图片布局
     {
       id: 'prerouting',
       type: 'chain',
-      position: { x: 250, y: 300 },
+      position: {x: 200, y: 250}, // PREROUTING位置
       data: {
         label: 'PREROUTING',
         chainType: 'prerouting',
@@ -502,7 +530,7 @@ const initializeFlowElements = () => {
     {
       id: 'routing-decision',
       type: 'decision',
-      position: { x: 500, y: 300 },
+      position: {x: 380, y: 250}, // 路由决策位置
       data: {
         label: '路由决策'
       },
@@ -511,7 +539,7 @@ const initializeFlowElements = () => {
     {
       id: 'input',
       type: 'chain',
-      position: { x: 700, y: 150 },
+      position: {x: 550, y: 120}, // INPUT位置（上方）
       data: {
         label: 'INPUT',
         chainType: 'input',
@@ -523,7 +551,7 @@ const initializeFlowElements = () => {
     {
       id: 'forward',
       type: 'chain',
-      position: { x: 700, y: 300 },
+      position: {x: 550, y: 250}, // FORWARD位置（中间）
       data: {
         label: 'FORWARD',
         chainType: 'forward',
@@ -535,7 +563,7 @@ const initializeFlowElements = () => {
     {
       id: 'output',
       type: 'chain',
-      position: { x: 700, y: 450 },
+      position: {x: 550, y: 380}, // OUTPUT位置（下方）
       data: {
         label: 'OUTPUT',
         chainType: 'output',
@@ -547,7 +575,7 @@ const initializeFlowElements = () => {
     {
       id: 'postrouting',
       type: 'chain',
-      position: { x: 900, y: 350 },
+      position: {x: 750, y: 280}, // POSTROUTING位置
       data: {
         label: 'POSTROUTING',
         chainType: 'postrouting',
@@ -559,7 +587,7 @@ const initializeFlowElements = () => {
     {
       id: 'local-process',
       type: 'process',
-      position: { x: 900, y: 150 },
+      position: {x: 750, y: 120}, // 本地进程位置（上方）
       data: {
         label: '本地进程'
       },
@@ -573,19 +601,19 @@ const initializeFlowElements = () => {
       id: 'e1',
       source: 'interface-external',
       target: 'prerouting',
-      type: 'straight', // 使用直线连接，避免不必要的拐点
+      type: 'smoothstep', // 使用智能步进避免对角线遮挡
       animated: selectedFlow.value === 'forward' || selectedFlow.value === 'input',
-      style: { 
-        stroke: '#409EFF', 
+      style: {
+        stroke: '#409EFF',
         strokeWidth: selectedFlow.value === 'forward' || selectedFlow.value === 'input' ? 6 : 4,
         filter: 'drop-shadow(0 3px 8px rgba(64, 158, 255, 0.4))',
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
         zIndex: 1000 // 确保连接线显示在节点上方
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
-        color: '#409EFF', 
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: '#409EFF',
         width: 24, // 增大箭头确保可见性
         height: 24,
         strokeWidth: 2,
@@ -593,14 +621,14 @@ const initializeFlowElements = () => {
         orient: 'auto' // 自动箭头方向
       },
       label: '入站数据包',
-      labelStyle: { 
-        fill: '#409EFF', 
+      labelStyle: {
+        fill: '#409EFF',
         fontWeight: 700,
         fontSize: '13px',
         textShadow: '0 1px 2px rgba(0,0,0,0.1)'
       },
-      labelBgStyle: { 
-        fill: 'rgba(255, 255, 255, 0.95)', 
+labelBgStyle: {
+        fill: 'rgba(255, 255, 255, 0.95)',
         fillOpacity: 0.95,
         stroke: '#409EFF',
         strokeWidth: 1,
@@ -617,10 +645,10 @@ const initializeFlowElements = () => {
       id: 'e2',
       source: 'prerouting',
       target: 'routing-decision',
-      type: 'straight', // 使用直线连接，避免不必要的拐点
+      type: 'smoothstep', // 使用智能步进避免对角线遮挡
       animated: selectedFlow.value === 'forward' || selectedFlow.value === 'input',
-      style: { 
-        stroke: '#409EFF', 
+      style: {
+        stroke: '#409EFF',
         strokeWidth: selectedFlow.value === 'forward' || selectedFlow.value === 'input' ? 6 : 4,
         filter: 'drop-shadow(0 3px 8px rgba(64, 158, 255, 0.4))',
         strokeLinecap: 'round',
@@ -628,9 +656,9 @@ const initializeFlowElements = () => {
         strokeDasharray: selectedFlow.value === 'forward' || selectedFlow.value === 'input' ? '0' : '12,6',
         zIndex: 1000
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
-        color: '#409EFF', 
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: '#409EFF',
         width: 24,
         height: 24,
         strokeWidth: 2,
@@ -656,8 +684,8 @@ const initializeFlowElements = () => {
         centerX: 0.3, // 调整连接点避免节点中心
         centerY: 0.3
       },
-      style: { 
-        stroke: selectedFlow.value === 'input' ? '#4CAF50' : '#B0BEC5', 
+      style: {
+        stroke: selectedFlow.value === 'input' ? '#4CAF50' : '#B0BEC5',
         strokeWidth: selectedFlow.value === 'input' ? 7 : 4,
         strokeDasharray: selectedFlow.value === 'input' ? '0' : '10,5',
         filter: selectedFlow.value === 'input' ? 'drop-shadow(0 4px 12px rgba(76, 175, 80, 0.5))' : 'drop-shadow(0 1px 3px rgba(0,0,0,0.2))',
@@ -665,8 +693,8 @@ const initializeFlowElements = () => {
         strokeLinejoin: 'round',
         zIndex: 1001 // 更高层级避免遮挡
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
         color: selectedFlow.value === 'input' ? '#4CAF50' : '#B0BEC5',
         width: selectedFlow.value === 'input' ? 26 : 22, // 增大箭头
         height: selectedFlow.value === 'input' ? 26 : 22,
@@ -675,17 +703,15 @@ const initializeFlowElements = () => {
         orient: 'auto-start-reverse'
       },
       label: '本地处理',
-      labelStyle: { 
-        fill: selectedFlow.value === 'input' ? '#4CAF50' : '#666', 
+      labelStyle: {
+        fill: selectedFlow.value === 'input' ? '#4CAF50' : '#666',
         fontWeight: 700,
         fontSize: '13px',
         textShadow: '0 1px 2px rgba(0,0,0,0.1)'
       },
-      labelBgStyle: { 
-        fill: 'rgba(255, 255, 255, 0.95)', 
+labelBgStyle: {
+        fill: 'rgba(255, 255, 255, 0.95)',
         fillOpacity: 0.95,
-        rx: 6,
-        ry: 6,
         stroke: selectedFlow.value === 'input' ? '#4CAF50' : '#B0BEC5',
         strokeWidth: 1,
         strokeOpacity: 0.4
@@ -710,8 +736,8 @@ const initializeFlowElements = () => {
         centerX: 0.5, // 水平居中
         centerY: 0.5
       },
-      style: { 
-        stroke: selectedFlow.value === 'forward' ? '#FF5722' : '#B0BEC5', 
+      style: {
+        stroke: selectedFlow.value === 'forward' ? '#FF5722' : '#B0BEC5',
         strokeWidth: selectedFlow.value === 'forward' ? 8 : 4,
         strokeDasharray: selectedFlow.value === 'forward' ? '0' : '12,6',
         filter: selectedFlow.value === 'forward' ? 'drop-shadow(0 4px 16px rgba(255, 87, 34, 0.6))' : 'drop-shadow(0 1px 3px rgba(0,0,0,0.2))',
@@ -719,8 +745,8 @@ const initializeFlowElements = () => {
         strokeLinejoin: 'round',
         zIndex: 1002 // 最高层级，关键路径
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
         color: selectedFlow.value === 'forward' ? '#FF5722' : '#B0BEC5',
         width: selectedFlow.value === 'forward' ? 28 : 22, // 增大关键路径箭头
         height: selectedFlow.value === 'forward' ? 28 : 22,
@@ -729,17 +755,15 @@ const initializeFlowElements = () => {
         orient: 'auto-start-reverse'
       },
       label: '转发处理',
-      labelStyle: { 
-        fill: selectedFlow.value === 'forward' ? '#FF5722' : '#666', 
+      labelStyle: {
+        fill: selectedFlow.value === 'forward' ? '#FF5722' : '#666',
         fontWeight: 700,
         fontSize: '14px',
         textShadow: '0 2px 4px rgba(0,0,0,0.2)'
       },
-      labelBgStyle: { 
-        fill: 'rgba(255, 255, 255, 0.95)', 
+labelBgStyle: {
+        fill: 'rgba(255, 255, 255, 0.95)',
         fillOpacity: 0.95,
-        rx: 8,
-        ry: 8,
         stroke: selectedFlow.value === 'forward' ? '#FF5722' : '#B0BEC5',
         strokeWidth: 2,
         strokeOpacity: 0.5
@@ -764,16 +788,16 @@ const initializeFlowElements = () => {
         centerX: 0.5,
         centerY: 0.5
       },
-      style: { 
-        stroke: selectedFlow.value === 'input' ? '#4CAF50' : '#B0BEC5', 
+      style: {
+        stroke: selectedFlow.value === 'input' ? '#4CAF50' : '#B0BEC5',
         strokeWidth: selectedFlow.value === 'input' ? 5 : 3,
         filter: selectedFlow.value === 'input' ? 'drop-shadow(0 2px 6px rgba(76, 175, 80, 0.4))' : 'none',
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
         zIndex: 999
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
         color: selectedFlow.value === 'input' ? '#4CAF50' : '#B0BEC5',
         width: 22, // 增大箭头
         height: 22,
@@ -797,16 +821,16 @@ const initializeFlowElements = () => {
         centerX: 0.5,
         centerY: 0.7 // 调整垂直位置避免交叉
       },
-      style: { 
-        stroke: selectedFlow.value === 'forward' ? '#FF5722' : '#B0BEC5', 
+      style: {
+        stroke: selectedFlow.value === 'forward' ? '#FF5722' : '#B0BEC5',
         strokeWidth: selectedFlow.value === 'forward' ? 5 : 3,
         filter: selectedFlow.value === 'forward' ? 'drop-shadow(0 2px 6px rgba(255, 87, 34, 0.4))' : 'none',
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
         zIndex: 998
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
         color: selectedFlow.value === 'forward' ? '#FF5722' : '#B0BEC5',
         width: 22,
         height: 22,
@@ -830,16 +854,16 @@ const initializeFlowElements = () => {
         centerX: 0.3, // 调整连接点避免交叉
         centerY: 0.7
       },
-      style: { 
-        stroke: selectedFlow.value === 'output' ? '#2196F3' : '#B0BEC5', 
+      style: {
+        stroke: selectedFlow.value === 'output' ? '#2196F3' : '#B0BEC5',
         strokeWidth: selectedFlow.value === 'output' ? 5 : 3,
         filter: selectedFlow.value === 'output' ? 'drop-shadow(0 2px 6px rgba(33, 150, 243, 0.4))' : 'none',
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
         zIndex: 997
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
         color: selectedFlow.value === 'output' ? '#2196F3' : '#B0BEC5',
         width: 22,
         height: 22,
@@ -848,16 +872,15 @@ const initializeFlowElements = () => {
         orient: 'auto-start-reverse'
       },
       label: '出站数据包',
-      labelStyle: { 
-        fill: selectedFlow.value === 'output' ? '#2196F3' : '#666', 
+      labelStyle: {
+        fill: selectedFlow.value === 'output' ? '#2196F3' : '#666',
         fontWeight: 600,
         fontSize: '12px'
       },
-      labelBgStyle: { 
-        fill: 'rgba(255, 255, 255, 0.9)', 
+      labelBgStyle: {
+        fill: 'rgba(255, 255, 255, 0.9)',
         fillOpacity: 0.9,
-        rx: 4,
-        ry: 4
+
       },
       data: {
         connectionType: 'diagonal-down'
@@ -875,16 +898,16 @@ const initializeFlowElements = () => {
         centerX: 0.5,
         centerY: 0.3 // 调整垂直位置
       },
-      style: { 
-        stroke: selectedFlow.value === 'output' ? '#2196F3' : '#B0BEC5', 
+      style: {
+        stroke: selectedFlow.value === 'output' ? '#2196F3' : '#B0BEC5',
         strokeWidth: selectedFlow.value === 'output' ? 5 : 3,
         filter: selectedFlow.value === 'output' ? 'drop-shadow(0 2px 6px rgba(33, 150, 243, 0.4))' : 'none',
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
         zIndex: 996
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
         color: selectedFlow.value === 'output' ? '#2196F3' : '#B0BEC5',
         width: 22,
         height: 22,
@@ -908,17 +931,17 @@ const initializeFlowElements = () => {
         centerX: 0.5,
         centerY: 0.5
       },
-      style: { 
-        stroke: '#409EFF', 
+      style: {
+        stroke: '#409EFF',
         strokeWidth: 4,
         filter: 'drop-shadow(0 2px 4px rgba(64, 158, 255, 0.3))',
         strokeLinecap: 'round',
         strokeLinejoin: 'round',
         zIndex: 995
       },
-      markerEnd: { 
-        type: MarkerType.ArrowClosed, 
-        color: '#409EFF', 
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: '#409EFF',
         width: 22,
         height: 22,
         strokeWidth: 2,
@@ -926,16 +949,15 @@ const initializeFlowElements = () => {
         orient: 'auto-start-reverse'
       },
       label: '出站数据包',
-      labelStyle: { 
-        fill: '#409EFF', 
+      labelStyle: {
+        fill: '#409EFF',
         fontWeight: 600,
         fontSize: '12px'
       },
-      labelBgStyle: { 
-        fill: 'rgba(255, 255, 255, 0.9)', 
+      labelBgStyle: {
+        fill: 'rgba(255, 255, 255, 0.9)',
         fillOpacity: 0.9,
-        rx: 4,
-        ry: 4
+
       },
       data: {
         connectionType: 'horizontal'
@@ -943,20 +965,25 @@ const initializeFlowElements = () => {
     }
   ]
 
-  // 为边添加高亮类支持
+// 为边添加高亮类支持
   const enhancedEdges = edges.map((edge: any) => ({
     ...edge,
     class: highlightedElements.value.has(edge.id) ? 'highlighted' : ''
   }))
 
   flowElements.value = [...nodes, ...enhancedEdges]
+  
+  // 应用预设布局
+  nextTick(() => {
+    applyPresetLayout()
+  })
 }
 
 // 事件处理
 const onViewModeChange = (mode: 'flow' | 'chain') => {
   // 保存当前布局状态
   saveCurrentLayoutState()
-  
+
   viewMode.value = mode
   if (mode === 'chain') {
     initializeFlowElements()
@@ -970,10 +997,10 @@ const onViewModeChange = (mode: 'flow' | 'chain') => {
 const onFlowChange = (flow: string) => {
   // 保存当前布局状态
   saveCurrentLayoutState()
-  
+
   selectedFlow.value = flow
   initializeFlowElements() // 重新初始化以更新动画状态
-  
+
   // 恢复保存的布局状态
   nextTick(() => {
     restoreLayoutState()
@@ -992,13 +1019,13 @@ const onEdgeClickOld = (event: any) => {
   console.log('Edge clicked:', event.edge)
   const edge = event.edge
   const edgeData = edge.data || {}
-  
+
   // 显示详细的连接信息
   const protocol = edgeData.protocol || '未知'
   const bandwidth = edgeData.bandwidth || '未知'
   const flowType = edgeData.flowType || '未知'
   const priority = edgeData.priority || '普通'
-  
+
   ElMessage({
     message: `
       <div style="text-align: left;">
@@ -1015,7 +1042,7 @@ const onEdgeClickOld = (event: any) => {
     duration: 5000,
     showClose: true
   })
-  
+
   // 高亮显示该连接路径
   highlightConnectionPath(edge.id)
 }
@@ -1026,7 +1053,7 @@ const onNodeDragStop = (event: any) => {
   const nodePositions = JSON.parse(localStorage.getItem('topology-node-positions') || '{}')
   nodePositions[event.node.id] = event.node.position
   localStorage.setItem('topology-node-positions', JSON.stringify(nodePositions))
-  
+
   // 节点拖拽后自动重新计算最优连接路径
   recalculateOptimalPaths(event.node.id)
 }
@@ -1035,21 +1062,21 @@ const onNodeDragStop = (event: any) => {
 const recalculateOptimalPaths = (movedNodeId: string) => {
   const edges = flowElements.value.filter((el: any) => 'source' in el) as any[]
   const nodes = flowElements.value.filter((el: any) => 'type' in el) as any[]
-  
+
   // 找到与移动节点相关的所有边
-  const affectedEdges = edges.filter(edge => 
-    edge.source === movedNodeId || edge.target === movedNodeId
+  const affectedEdges = edges.filter(edge =>
+      edge.source === movedNodeId || edge.target === movedNodeId
   )
-  
+
   let optimizedCount = 0
-  
+
   affectedEdges.forEach(edge => {
     const sourceNode = nodes.find((n: any) => n.id === edge.source)
     const targetNode = nodes.find((n: any) => n.id === edge.target)
-    
+
     if (sourceNode && targetNode) {
       const optimalPath = calculateOptimalPath(sourceNode, targetNode, nodes, edges)
-      
+
       // 应用新的路径配置
       edge.type = optimalPath.connectionType
       edge.pathOptions = optimalPath.pathOptions
@@ -1057,18 +1084,18 @@ const recalculateOptimalPaths = (movedNodeId: string) => {
         ...edge.style,
         zIndex: optimalPath.zIndex
       }
-      
+
       if (edge.markerEnd) {
         edge.markerEnd.width = optimalPath.arrowSize
         edge.markerEnd.height = optimalPath.arrowSize
       }
-      
+
       optimizedCount++
     }
   })
-  
+
   if (optimizedCount > 0) {
-  ElMessage.success(`已重新优化 ${optimizedCount} 个连接路径`)
+    ElMessage.success(`已重新优化 ${optimizedCount} 个连接路径`)
   }
 }
 
@@ -1077,7 +1104,7 @@ const applyDifferentiatedStyles = (edges: any[]) => {
   edges.forEach(edge => {
     const flowType = edge.data?.flowType || 'default'
     const priority = edge.data?.priority || 'normal'
-    
+
     // 根据流类型设置样式
     const styleMap = {
       'forward': {
@@ -1105,18 +1132,18 @@ const applyDifferentiatedStyles = (edges: any[]) => {
         filter: 'drop-shadow(0 1px 3px rgba(0, 0, 0, 0.2))'
       }
     }
-    
+
     // 根据优先级调整样式
     const priorityAdjustments = {
-      'critical': { strokeWidth: 6, filter: 'drop-shadow(0 0 8px currentColor)' },
-      'high': { strokeWidth: 5, filter: 'drop-shadow(0 0 6px currentColor)' },
-      'normal': { strokeWidth: 4 },
-      'low': { strokeWidth: 3, opacity: 0.7 }
+      'critical': {strokeWidth: 6, filter: 'drop-shadow(0 0 8px currentColor)'},
+      'high': {strokeWidth: 5, filter: 'drop-shadow(0 0 6px currentColor)'},
+      'normal': {strokeWidth: 4},
+      'low': {strokeWidth: 3, opacity: 0.7}
     }
-    
+
     const baseStyle = styleMap[flowType] || styleMap.default
     const priorityStyle = priorityAdjustments[priority] || priorityAdjustments.normal
-    
+
     edge.style = {
       ...edge.style,
       ...baseStyle,
@@ -1128,11 +1155,11 @@ const applyDifferentiatedStyles = (edges: any[]) => {
 // 减少不必要的连线弯曲和转折
 const straightenUnnecessaryBends = (edges: any[], nodes: any[]) => {
   const optimizations = new Map()
-  
+
   edges.forEach(edge => {
     const sourceNode = nodes.find(n => n.id === edge.source)
     const targetNode = nodes.find(n => n.id === edge.target)
-    
+
     if (sourceNode && targetNode) {
       const straightenResult = analyzeBendNecessity(sourceNode, targetNode, nodes)
       if (straightenResult.canStraighten) {
@@ -1143,7 +1170,7 @@ const straightenUnnecessaryBends = (edges: any[], nodes: any[]) => {
       }
     }
   })
-  
+
   return optimizations
 }
 
@@ -1155,20 +1182,20 @@ const analyzeBendNecessity = (sourceNode: any, targetNode: any, allNodes: any[])
     x2: targetNode.position.x + 50,
     y2: targetNode.position.y + 40
   }
-  
+
   // 检查直线路径是否会穿过其他节点
   const hasObstacles = allNodes.some(node => {
     if (node.id === sourceNode.id || node.id === targetNode.id) return false
-    
+
     const nodeCenter = {
       x: node.position.x + 50,
       y: node.position.y + 40
     }
-    
+
     const distance = pointToLineDistance(nodeCenter, directPath)
     return distance < 60 // 如果距离小于60px，认为有障碍
   })
-  
+
   return {
     canStraighten: !hasObstacles,
     pathOptions: hasObstacles ? null : {
@@ -1183,12 +1210,12 @@ const addDynamicVisualEffects = (edges: any[]) => {
   edges.forEach(edge => {
     const isActive = edge.data?.active || false
     const bandwidth = edge.data?.bandwidth || 'low'
-    
+
     if (isActive) {
       // 添加流动动画
       edge.animated = true
       edge.class = (edge.class || '') + ' active-connection'
-      
+
       // 根据带宽调整动画速度
       const animationSpeed = {
         'very-high': '0.5s',
@@ -1196,7 +1223,7 @@ const addDynamicVisualEffects = (edges: any[]) => {
         'medium': '1.5s',
         'low': '2s'
       }[bandwidth] || '2s'
-      
+
       edge.style = {
         ...edge.style,
         animationDuration: animationSpeed,
@@ -1210,17 +1237,17 @@ const addDynamicVisualEffects = (edges: any[]) => {
 // 应用路径优化
 const applyPathOptimization = (edge: any, optimization: any) => {
   edge.type = optimization.type
-  
+
   if (optimization.controlPoints && optimization.controlPoints.length > 0) {
     edge.pathOptions = {
       curvature: 0.3,
       controlPoints: optimization.controlPoints
     }
   }
-  
+
   // 设置连接质量评分
   connectionQuality.value.set(edge.id, optimization.quality)
-  
+
   // 添加质量指示类
   const qualityClass = getQualityClass(optimization.quality)
   edge.class = (edge.class || '').replace(/quality-\w+/g, '') + ` ${qualityClass}`
@@ -1238,7 +1265,7 @@ const applyArrowOptimization = (edge: any, optimization: any) => {
     edge.markerEnd.width = optimization.size
     edge.markerEnd.height = optimization.size
   }
-  
+
   // 设置箭头样式
   edge.markerEnd.style = optimization.style
   edge.markerEnd.orient = 'auto'
@@ -1251,33 +1278,33 @@ const calculateConnectionQuality = (edges: any[], nodes: any[]) => {
   edges.forEach(edge => {
     const sourceNode = nodes.find(n => n.id === edge.source)
     const targetNode = nodes.find(n => n.id === edge.target)
-    
+
     if (sourceNode && targetNode) {
       let quality = 100
-      
+
       // 距离因子
       const distance = Math.sqrt(
-        Math.pow(targetNode.position.x - sourceNode.position.x, 2) +
-        Math.pow(targetNode.position.y - sourceNode.position.y, 2)
+          Math.pow(targetNode.position.x - sourceNode.position.x, 2) +
+          Math.pow(targetNode.position.y - sourceNode.position.y, 2)
       )
-      
+
       if (distance < 100) quality -= 10 // 距离太近
       if (distance > 400) quality -= 15 // 距离太远
-      
+
       // 角度因子
       const angle = Math.atan2(
-        targetNode.position.y - sourceNode.position.y,
-        targetNode.position.x - sourceNode.position.x
+          targetNode.position.y - sourceNode.position.y,
+          targetNode.position.x - sourceNode.position.x
       ) * (180 / Math.PI)
-      
+
       // 优先水平和垂直连接
       const normalizedAngle = Math.abs(angle % 90)
       if (normalizedAngle > 15 && normalizedAngle < 75) quality -= 5
-      
+
       // 障碍因子
       const obstacles = findObstacleNodes(sourceNode, targetNode, nodes)
       quality -= obstacles.length * 10
-      
+
       connectionQuality.value.set(edge.id, Math.max(quality, 0))
     }
   })
@@ -1299,18 +1326,18 @@ const saveOptimizationState = () => {
     edgeStyles: {},
     connectionQualities: Object.fromEntries(connectionQuality.value)
   }
-  
+
   // 保存节点位置
   flowElements.value.forEach((el: any) => {
     if ('position' in el) {
-      state.nodePositions[el.id] = { ...el.position }
+      state.nodePositions[el.id] = {...el.position}
     } else if ('style' in el) {
-      state.edgeStyles[el.id] = { ...el.style }
+      state.edgeStyles[el.id] = {...el.style}
     }
   })
-  
+
   optimizationHistory.value.push(state)
-  
+
   // 只保留最近10次优化记录
   if (optimizationHistory.value.length > 10) {
     optimizationHistory.value.shift()
@@ -1325,20 +1352,20 @@ const saveLayoutConfiguration = () => {
     connectionQualities: Object.fromEntries(connectionQuality.value),
     timestamp: Date.now()
   }
-  
+
   // 保存当前节点位置
   flowElements.value.forEach((el: any) => {
     if ('position' in el) {
-      config.nodePositions[el.id] = { ...el.position }
+      config.nodePositions[el.id] = {...el.position}
     } else if ('style' in el) {
-      config.edgeStyles[el.id] = { ...el.style }
+      config.edgeStyles[el.id] = {...el.style}
     }
   })
-  
+
   // 保存到本地存储
   localStorage.setItem('topology-layout-config', JSON.stringify(config))
   layoutConfiguration.value = config
-  
+
   ElMessage.success('布局配置已保存')
 }
 
@@ -1349,12 +1376,12 @@ const loadLayoutConfiguration = () => {
     if (savedConfig) {
       const config = JSON.parse(savedConfig)
       layoutConfiguration.value = config
-      
+
       // 应用保存的连接质量评分
       if (config.connectionQualities) {
         connectionQuality.value = new Map(Object.entries(config.connectionQualities))
       }
-      
+
       console.log('布局配置已加载')
     }
   } catch (error) {
@@ -1372,16 +1399,16 @@ const saveCurrentLayoutState = () => {
       selectedFlow: selectedFlow.value,
       timestamp: Date.now()
     }
-    
+
     // 保存节点位置
     flowElements.value.forEach((el: any) => {
       if ('position' in el) {
-        layoutState.nodePositions[el.id] = { ...el.position }
+        layoutState.nodePositions[el.id] = {...el.position}
       } else if ('style' in el) {
-        layoutState.edgeStyles[el.id] = { ...el.style }
+        layoutState.edgeStyles[el.id] = {...el.style}
       }
     })
-    
+
     localStorage.setItem('topology-layout-state', JSON.stringify(layoutState))
   } catch (error) {
     console.warn('保存布局状态失败:', error)
@@ -1394,25 +1421,25 @@ const restoreLayoutState = () => {
     const savedState = localStorage.getItem('topology-layout-state')
     if (savedState) {
       const state = JSON.parse(savedState)
-      
+
       // 恢复节点位置
       if (state.nodePositions) {
         flowElements.value.forEach((el: any) => {
           if ('position' in el && state.nodePositions[el.id]) {
-            el.position = { ...state.nodePositions[el.id] }
+            el.position = {...state.nodePositions[el.id]}
           }
         })
       }
-      
+
       // 恢复边样式
       if (state.edgeStyles) {
         flowElements.value.forEach((el: any) => {
           if ('source' in el && state.edgeStyles[el.id]) {
-            el.style = { ...el.style, ...state.edgeStyles[el.id] }
+            el.style = {...el.style, ...state.edgeStyles[el.id]}
           }
         })
       }
-      
+
       console.log('布局状态已恢复')
     }
   } catch (error) {
@@ -1426,7 +1453,7 @@ const loadArrowAdjustments = () => {
     const savedAdjustments = localStorage.getItem('arrow-adjustments')
     if (savedAdjustments) {
       const adjustments = JSON.parse(savedAdjustments)
-      
+
       // 应用保存的箭头调整
       Object.entries(adjustments).forEach(([edgeId, adjustment]: [string, any]) => {
         const edge = flowElements.value.find((el: any) => el.id === edgeId)
@@ -1439,7 +1466,7 @@ const loadArrowAdjustments = () => {
           }
         }
       })
-      
+
       console.log('箭头调整设置已加载')
     }
   } catch (error) {
@@ -1451,7 +1478,7 @@ const loadArrowAdjustments = () => {
 const initializeConnectionQuality = () => {
   const edges = flowElements.value.filter((el: any) => 'source' in el)
   const nodes = flowElements.value.filter((el: any) => 'type' in el)
-  
+
   if (edges.length > 0 && nodes.length > 0) {
     calculateConnectionQuality(edges, nodes)
   }
@@ -1468,18 +1495,18 @@ const exportTopology = () => {
     optimizationHistory: optimizationHistory.value,
     layoutConfiguration: layoutConfiguration.value
   }
-  
+
   // 收集当前状态
   flowElements.value.forEach((el: any) => {
     if ('position' in el) {
-      config.nodePositions[el.id] = { ...el.position }
+      config.nodePositions[el.id] = {...el.position}
     } else if ('style' in el) {
-      config.edgeStyles[el.id] = { ...el.style }
+      config.edgeStyles[el.id] = {...el.style}
     }
   })
-  
+
   // 创建下载链接
-  const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
+  const blob = new Blob([JSON.stringify(config, null, 2)], {type: 'application/json'})
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
@@ -1488,7 +1515,7 @@ const exportTopology = () => {
   link.click()
   document.body.removeChild(link)
   URL.revokeObjectURL(url)
-  
+
   ElMessage.success('拓扑配置已导出')
 }
 
@@ -1498,43 +1525,43 @@ const importTopology = (configFile: File) => {
   reader.onload = (e) => {
     try {
       const config = JSON.parse(e.target?.result as string)
-      
+
       // 验证配置格式
       if (!config.version || !config.nodePositions) {
         throw new Error('无效的配置文件格式')
       }
-      
+
       // 应用配置
       if (config.nodePositions) {
         Object.entries(config.nodePositions).forEach(([nodeId, position]: [string, any]) => {
           const node = flowElements.value.find((el: any) => el.id === nodeId)
           if (node && 'position' in node) {
-            node.position = { ...position }
+            node.position = {...position}
           }
         })
       }
-      
+
       if (config.edgeStyles) {
         Object.entries(config.edgeStyles).forEach(([edgeId, style]: [string, any]) => {
           const edge = flowElements.value.find((el: any) => el.id === edgeId)
           if (edge && 'style' in edge) {
-            edge.style = { ...style }
+            edge.style = {...style}
           }
         })
       }
-      
+
       if (config.connectionQualities) {
         connectionQuality.value = new Map(Object.entries(config.connectionQualities))
       }
-      
+
       if (config.optimizationHistory) {
         optimizationHistory.value = config.optimizationHistory
       }
-      
+
       if (config.layoutConfiguration) {
         layoutConfiguration.value = config.layoutConfiguration
       }
-      
+
       ElMessage.success('拓扑配置已导入')
     } catch (error) {
       ElMessage.error('导入配置失败: ' + error.message)
@@ -1567,13 +1594,13 @@ const expandConnection = (edgeId: string) => {
       filter: `${edge.style.filter || ''} drop-shadow(0 0 12px currentColor)`,
       zIndex: (edge.style.zIndex || 1000) + 100
     }
-    
+
     // 增大箭头
     if (edge.markerEnd) {
       edge.markerEnd.width = (edge.markerEnd.width || 22) + 4
       edge.markerEnd.height = (edge.markerEnd.height || 22) + 4
     }
-    
+
     // 添加展开类
     edge.class = (edge.class || '') + ' expanded'
   }
@@ -1590,13 +1617,13 @@ const collapseConnection = (edgeId: string) => {
       filter: edge.style.filter?.replace(' drop-shadow(0 0 12px currentColor)', '') || '',
       zIndex: Math.max((edge.style.zIndex || 1000) - 100, 1000)
     }
-    
+
     // 恢复箭头大小
     if (edge.markerEnd) {
       edge.markerEnd.width = Math.max((edge.markerEnd.width || 22) - 4, 18)
       edge.markerEnd.height = Math.max((edge.markerEnd.height || 22) - 4, 18)
     }
-    
+
     // 移除展开类
     edge.class = (edge.class || '').replace(' expanded', '')
   }
@@ -1613,7 +1640,7 @@ const connectionQuality = ref<Map<string, number>>(new Map())
 const enableManualAdjust = (edgeId?: string) => {
   manualAdjustMode.value = true
   adjustingEdgeId.value = edgeId || null
-  
+
   if (edgeId) {
     const edge = flowElements.value.find((el: any) => el.id === edgeId) as any
     if (edge) {
@@ -1629,20 +1656,20 @@ const enableManualAdjust = (edgeId?: string) => {
       addEdgeControlPoints(edge)
     })
   }
-  
+
   ElMessage.info('手动调整模式已启用，拖拽控制点调整连线路径，点击箭头调整位置')
 }
 
 const disableManualAdjust = () => {
   manualAdjustMode.value = false
-  
+
   // 移除所有边的手动调整样式和控制点
   const edges = flowElements.value.filter((el: any) => 'source' in el)
   edges.forEach(edge => {
     edge.class = (edge.class || '').replace(' manual-adjust', '')
     removeEdgeControlPoints(edge.id)
   })
-  
+
   adjustingEdgeId.value = null
   ElMessage.success('手动调整模式已关闭，所有调整已保存')
 }
@@ -1651,11 +1678,11 @@ const disableManualAdjust = () => {
 const addEdgeControlPoints = (edge: any) => {
   const sourceNode = flowElements.value.find((el: any) => el.id === edge.source)
   const targetNode = flowElements.value.find((el: any) => el.id === edge.target)
-  
+
   if (sourceNode && targetNode && 'position' in sourceNode && 'position' in targetNode) {
     const controlPoints = calculateControlPoints(sourceNode, targetNode)
     edgeControlPoints.value.set(edge.id, controlPoints)
-    
+
     // 更新边的路径选项
     edge.pathOptions = {
       ...edge.pathOptions,
@@ -1670,19 +1697,19 @@ const calculateControlPoints = (sourceNode: any, targetNode: any) => {
   const sy = sourceNode.position.y + 40
   const tx = targetNode.position.x + 50
   const ty = targetNode.position.y + 40
-  
+
   // 计算中点
   const midX = (sx + tx) / 2
   const midY = (sy + ty) / 2
-  
+
   // 计算垂直偏移
   const dx = tx - sx
   const dy = ty - sy
   const distance = Math.sqrt(dx * dx + dy * dy)
-  
+
   // 根据距离调整控制点偏移
   const offset = Math.min(distance * 0.2, 50)
-  
+
   return [
     {
       id: `${sourceNode.id}-${targetNode.id}-cp1`,
@@ -1713,7 +1740,7 @@ const onControlPointDrag = (controlPointId: string, newPosition: any) => {
       // 更新控制点位置
       controlPoint.x = newPosition.x
       controlPoint.y = newPosition.y
-      
+
       // 更新边的路径
       const edge = flowElements.value.find((el: any) => el.id === edgeId)
       if (edge) {
@@ -1731,15 +1758,15 @@ const updateEdgePath = (edge: any, controlPoints: any[]) => {
     controlPoints: controlPoints,
     type: 'bezier'
   }
-  
+
   // 重新计算连接质量
   const sourceNode = flowElements.value.find((el: any) => el.id === edge.source)
   const targetNode = flowElements.value.find((el: any) => el.id === edge.target)
-  
+
   if (sourceNode && targetNode) {
     const quality = calculatePathQuality(sourceNode, targetNode, controlPoints)
     connectionQuality.value.set(edge.id, quality)
-    
+
     // 更新质量指示类
     const qualityClass = getQualityClass(quality)
     edge.class = (edge.class || '').replace(/quality-\w+/g, '') + ` ${qualityClass}`
@@ -1749,37 +1776,37 @@ const updateEdgePath = (edge: any, controlPoints: any[]) => {
 // 计算路径质量
 const calculatePathQuality = (sourceNode: any, targetNode: any, controlPoints: any[]) => {
   let quality = 100
-  
+
   // 基础距离评分
   const directDistance = Math.sqrt(
-    Math.pow(targetNode.position.x - sourceNode.position.x, 2) +
-    Math.pow(targetNode.position.y - sourceNode.position.y, 2)
+      Math.pow(targetNode.position.x - sourceNode.position.x, 2) +
+      Math.pow(targetNode.position.y - sourceNode.position.y, 2)
   )
-  
+
   // 计算实际路径长度
   let pathLength = 0
   let prevX = sourceNode.position.x + 50
   let prevY = sourceNode.position.y + 40
-  
+
   controlPoints.forEach(cp => {
     pathLength += Math.sqrt(Math.pow(cp.x - prevX, 2) + Math.pow(cp.y - prevY, 2))
     prevX = cp.x
     prevY = cp.y
   })
-  
+
   pathLength += Math.sqrt(
-    Math.pow(targetNode.position.x + 50 - prevX, 2) +
-    Math.pow(targetNode.position.y + 40 - prevY, 2)
+      Math.pow(targetNode.position.x + 50 - prevX, 2) +
+      Math.pow(targetNode.position.y + 40 - prevY, 2)
   )
-  
+
   // 路径效率评分（实际长度与直线距离的比值）
   const efficiency = directDistance / pathLength
   quality *= efficiency
-  
+
   // 弯曲度评分
   const bendCount = controlPoints.length
   quality -= bendCount * 5
-  
+
   return Math.max(quality, 0)
 }
 
@@ -1788,10 +1815,10 @@ const adjustArrowPosition = (edgeId: string, offset: number) => {
   const edge = flowElements.value.find((el: any) => el.id === edgeId)
   if (edge && edge.markerEnd) {
     edge.markerEnd.refX = offset
-    
+
     // 保存调整
     const adjustments = JSON.parse(localStorage.getItem('arrow-adjustments') || '{}')
-    adjustments[edgeId] = { refX: offset }
+    adjustments[edgeId] = {refX: offset}
     localStorage.setItem('arrow-adjustments', JSON.stringify(adjustments))
   }
 }
@@ -1801,7 +1828,7 @@ const adjustArrowAngle = (edgeId: string, angle: number) => {
   const edge = flowElements.value.find((el: any) => el.id === edgeId)
   if (edge && edge.markerEnd) {
     edge.markerEnd.orient = `${angle}deg`
-    
+
     // 保存调整
     const adjustments = JSON.parse(localStorage.getItem('arrow-adjustments') || '{}')
     if (!adjustments[edgeId]) adjustments[edgeId] = {}
@@ -1814,30 +1841,30 @@ const adjustArrowAngle = (edgeId: string, angle: number) => {
 const detectDenseAreas = () => {
   const edges = flowElements.value.filter((el: any) => 'source' in el) as any[]
   const nodes = flowElements.value.filter((el: any) => 'type' in el) as any[]
-  
+
   // 计算每个区域的连接密度
   const densityMap = new Map<string, number>()
-  
+
   nodes.forEach((node: any) => {
-    const connectedEdges = edges.filter(edge => 
-      edge.source === node.id || edge.target === node.id
+    const connectedEdges = edges.filter(edge =>
+        edge.source === node.id || edge.target === node.id
     )
-    
+
     if (connectedEdges.length > 2) {
       densityMap.set(node.id, connectedEdges.length)
-      
+
       // 为密集区域的边添加特殊样式
       connectedEdges.forEach(edge => {
         edge.class = (edge.class || '') + ' dense-area'
       })
     }
   })
-  
+
   const denseCount = densityMap.size
   if (denseCount > 0) {
     ElMessage.info(`检测到 ${denseCount} 个密集连接区域，已应用优化样式`)
   }
-  
+
   return densityMap
 }
 
@@ -1858,10 +1885,10 @@ const onEdgeClick = (event: any) => {
     // 在手动调整模式下，点击连线进行调整
     const edgeId = event.edge.id
     adjustingEdgeId.value = edgeId
-    
+
     // 高亮选中的连线
     highlightConnectionPath(edgeId)
-    
+
     ElMessage.info(`已选中连线 ${edgeId}，可以拖拽控制点调整路径`)
   } else {
     // 普通模式下显示连线信息
@@ -1873,22 +1900,22 @@ const onEdgeClick = (event: any) => {
 const showEdgeDetails = (edge: any) => {
   const sourceNode = flowElements.value.find((el: any) => el.id === edge.source)
   const targetNode = flowElements.value.find((el: any) => el.id === edge.target)
-  
+
   if (sourceNode && targetNode) {
     const quality = connectionQuality.value.get(edge.id) || 0
     const qualityText = quality >= 90 ? '优秀' : quality >= 75 ? '良好' : quality >= 60 ? '一般' : '较差'
-    
+
     ElMessageBox.alert(
-      `源节点: ${sourceNode.data?.label || sourceNode.id}\n` +
-      `目标节点: ${targetNode.data?.label || targetNode.id}\n` +
-      `连接类型: ${edge.data?.flowType || '默认'}\n` +
-      `连接质量: ${qualityText} (${quality.toFixed(1)}分)\n` +
-      `优先级: ${edge.data?.priority || '普通'}`,
-      '连接详情',
-      {
-        confirmButtonText: '确定',
-        type: 'info'
-      }
+        `源节点: ${sourceNode.data?.label || sourceNode.id}\n` +
+        `目标节点: ${targetNode.data?.label || targetNode.id}\n` +
+        `连接类型: ${edge.data?.flowType || '默认'}\n` +
+        `连接质量: ${qualityText} (${quality.toFixed(1)}分)\n` +
+        `优先级: ${edge.data?.priority || '普通'}`,
+        '连接详情',
+        {
+          confirmButtonText: '确定',
+          type: 'info'
+        }
     )
   }
 }
@@ -1911,7 +1938,7 @@ const onEdgeDoubleClick = (event: any) => {
 // 连线右键菜单
 const onEdgeContextMenu = (event: any) => {
   event.preventDefault()
-  
+
   const edgeId = event.edge.id
   const menuItems = [
     {
@@ -1931,7 +1958,7 @@ const onEdgeContextMenu = (event: any) => {
       action: () => copyConnectionConfig(edgeId)
     }
   ]
-  
+
   // 这里可以显示自定义右键菜单
   console.log('连线右键菜单:', menuItems)
 }
@@ -1940,18 +1967,18 @@ const onEdgeContextMenu = (event: any) => {
 const optimizeSingleConnection = (edgeId: string) => {
   const edge = flowElements.value.find((el: any) => el.id === edgeId)
   const nodes = flowElements.value.filter((el: any) => 'type' in el)
-  
+
   if (edge && 'source' in edge) {
     const sourceNode = nodes.find((n: any) => n.id === edge.source)
     const targetNode = nodes.find((n: any) => n.id === edge.target)
-    
+
     if (sourceNode && targetNode) {
       const optimization = calculateBestPath(sourceNode, targetNode, nodes, [edge])
       applyPathOptimization(edge, optimization)
-      
+
       const arrowOptimization = calculateOptimalArrowDirection(sourceNode, targetNode, edge)
       applyArrowOptimization(edge, arrowOptimization)
-      
+
       ElMessage.success(`连线 ${edgeId} 已优化`)
     }
   }
@@ -1964,7 +1991,7 @@ const showArrowAdjustmentDialog = (edgeId: string) => {
     cancelButtonText: '取消',
     inputPattern: /^\d+(\.\d+)?$/,
     inputErrorMessage: '请输入有效的数字'
-  }).then(({ value }) => {
+  }).then(({value}) => {
     const offset = parseFloat(value)
     adjustArrowPosition(edgeId, offset)
     ElMessage.success('箭头位置已调整')
@@ -1977,7 +2004,7 @@ const showArrowAdjustmentDialog = (edgeId: string) => {
 const showPriorityDialog = (edgeId: string) => {
   const priorities = ['low', 'normal', 'high', 'critical']
   const priorityLabels = ['低', '普通', '高', '关键']
-  
+
   ElMessageBox({
     title: '设置连线优先级',
     message: '请选择连线优先级',
@@ -2003,7 +2030,7 @@ const copyConnectionConfig = (edgeId: string) => {
       markerEnd: edge.markerEnd,
       data: edge.data
     }
-    
+
     navigator.clipboard.writeText(JSON.stringify(config, null, 2)).then(() => {
       ElMessage.success('连线配置已复制到剪贴板')
     }).catch(() => {
@@ -2028,7 +2055,7 @@ const onEdgeMouseLeave = () => {
 const highlightConnectedElements = (nodeId: string) => {
   highlightedElements.value.clear()
   highlightedElements.value.add(nodeId)
-  
+
   // 查找所有连接到该节点的边
   flowElements.value.forEach((element: any) => {
     if ('source' in element && (element.source === nodeId || element.target === nodeId)) {
@@ -2043,17 +2070,17 @@ const highlightConnectedElements = (nodeId: string) => {
 const highlightConnectionPath = (edgeId: string) => {
   highlightedElements.value.clear()
   highlightedElements.value.add(edgeId)
-  
+
   // 查找该边的源节点和目标节点
   const edge = flowElements.value.find((el: any) => el.id === edgeId)
   if (edge && 'source' in edge) {
     highlightedElements.value.add(edge.source)
     highlightedElements.value.add(edge.target)
-    
+
     // 动态调整箭头属性
     adjustArrowProperties(edge)
   }
-  
+
   // 3秒后清除高亮
   setTimeout(() => {
     highlightedElements.value.clear()
@@ -2064,13 +2091,13 @@ const highlightConnectionPath = (edgeId: string) => {
 const adjustArrowProperties = (edge: any) => {
   const sourceNode = flowElements.value.find((el: any) => el.id === edge.source)
   const targetNode = flowElements.value.find((el: any) => el.id === edge.target)
-  
+
   if (sourceNode && targetNode && 'position' in sourceNode && 'position' in targetNode) {
     // 计算节点间距离
     const dx = targetNode.position.x - sourceNode.position.x
     const dy = targetNode.position.y - sourceNode.position.y
     const distance = Math.sqrt(dx * dx + dy * dy)
-    
+
     // 根据距离动态调整箭头大小
     let arrowSize = 18 // 默认尺寸
     if (distance < 150) {
@@ -2078,12 +2105,12 @@ const adjustArrowProperties = (edge: any) => {
     } else if (distance > 300) {
       arrowSize = 22 // 远距离使用大箭头
     }
-    
+
     // 更新边的箭头属性
     if (edge.markerEnd) {
       edge.markerEnd.width = arrowSize
       edge.markerEnd.height = arrowSize
-      
+
       // 添加边缘检测，确保箭头不被节点遮挡
       const nodeRadius = 50 // 假设节点半径
       const offset = nodeRadius + 10 // 箭头偏移量
@@ -2097,17 +2124,17 @@ const adjustArrowProperties = (edge: any) => {
 const detectArrowOverlap = (edge: any) => {
   const sourceNode = flowElements.value.find((el: any) => el.id === edge.source)
   const targetNode = flowElements.value.find((el: any) => el.id === edge.target)
-  
+
   if (sourceNode && targetNode && 'position' in sourceNode && 'position' in targetNode) {
     const nodeSize = 80 // 平均节点尺寸
     const dx = targetNode.position.x - sourceNode.position.x
     const dy = targetNode.position.y - sourceNode.position.y
     const distance = Math.sqrt(dx * dx + dy * dy)
-    
+
     // 如果距离太近，可能存在遮挡
     return distance < nodeSize * 1.5
   }
-  
+
   return false
 }
 
@@ -2115,17 +2142,17 @@ const detectArrowOverlap = (edge: any) => {
 const optimizeArrowPositions = () => {
   const edges = flowElements.value.filter(el => 'source' in el) as any[]
   const nodes = flowElements.value.filter(el => 'type' in el) as any[]
-  
+
   let optimizedCount = 0
-  
+
   edges.forEach(edge => {
     const sourceNode = nodes.find(n => n.id === edge.source)
     const targetNode = nodes.find(n => n.id === edge.target)
-    
+
     if (sourceNode && targetNode) {
       // 计算最优连接路径
       const optimalPath = calculateOptimalPath(sourceNode, targetNode, nodes, edges)
-      
+
       // 应用路径优化
       if (optimalPath.needsOptimization) {
         edge.type = optimalPath.connectionType
@@ -2136,7 +2163,7 @@ const optimizeArrowPositions = () => {
           strokeLinecap: 'round',
           strokeLinejoin: 'round'
         }
-        
+
         // 优化箭头属性
         if (edge.markerEnd) {
           edge.markerEnd.width = optimalPath.arrowSize
@@ -2145,114 +2172,223 @@ const optimizeArrowPositions = () => {
           edge.markerEnd.orient = 'auto-start-reverse'
           edge.markerEnd.strokeWidth = 2
         }
-        
+
         optimizedCount++
       }
     }
   })
-  
+
   // 重新计算边的层级避免交叉
   optimizeEdgeZIndex(edges)
-  
+
   ElMessage.success(`箭头位置已优化，处理了 ${optimizedCount} 个连接，避免节点遮挡`)
 }
 
-// 计算最优连接路径
-const calculateOptimalPath = (sourceNode: any, targetNode: any, allNodes: any[], allEdges: any[]) => {
-  const dx = targetNode.position.x - sourceNode.position.x
-  const dy = targetNode.position.y - sourceNode.position.y
+// 计算节点边缘位置
+const getNodeEdgePosition = (node: any, targetNode: any, isSource: boolean = true) => {
+  if (!node?.position || !targetNode?.position) {
+    return { x: 0, y: 0 }
+  }
+
+  // 节点尺寸（根据实际节点大小调整）
+  const nodeWidth = 120
+  const nodeHeight = 80
+  
+  // 节点中心位置
+  const centerX = node.position.x + nodeWidth / 2
+  const centerY = node.position.y + nodeHeight / 2
+  
+  // 目标节点中心位置
+  const targetCenterX = targetNode.position.x + nodeWidth / 2
+  const targetCenterY = targetNode.position.y + nodeHeight / 2
+  
+  // 计算方向向量
+  const dx = targetCenterX - centerX
+  const dy = targetCenterY - centerY
   const distance = Math.sqrt(dx * dx + dy * dy)
   
+  if (distance === 0) {
+    return { x: centerX, y: centerY }
+  }
+  
+  // 标准化方向向量
+  const unitX = dx / distance
+  const unitY = dy / distance
+  
+  // 计算边缘交点
+  let edgeX, edgeY
+  
+  // 计算与节点边界的交点
+  const absUnitX = Math.abs(unitX)
+  const absUnitY = Math.abs(unitY)
+  
+  if (absUnitX > absUnitY) {
+    // 主要是水平方向，与左右边界相交
+    const halfWidth = nodeWidth / 2
+    edgeX = centerX + (unitX > 0 ? halfWidth : -halfWidth)
+    edgeY = centerY + (unitY * halfWidth / absUnitX)
+  } else {
+    // 主要是垂直方向，与上下边界相交
+    const halfHeight = nodeHeight / 2
+    edgeX = centerX + (unitX * halfHeight / absUnitY)
+    edgeY = centerY + (unitY > 0 ? halfHeight : -halfHeight)
+  }
+  
+  return { x: edgeX, y: edgeY }
+}
+
+// 计算最优连接路径（增强版）
+const calculateOptimalPath = (sourceNode: any, targetNode: any, allNodes: any[], allEdges: any[]) => {
+  // 添加安全检查，防止position属性为undefined
+  if (!sourceNode?.position || !targetNode?.position) {
+    console.warn('Node position is undefined:', { sourceNode, targetNode })
+    return {
+      needsOptimization: false,
+      connectionType: 'straight',
+      pathOptions: {},
+      arrowSize: 20,
+      zIndex: 1000,
+      edgePositions: null
+    }
+  }
+
+  // 计算节点边缘位置
+  const sourceEdge = getNodeEdgePosition(sourceNode, targetNode, true)
+  const targetEdge = getNodeEdgePosition(targetNode, sourceNode, false)
+  
+  const dx = targetEdge.x - sourceEdge.x
+  const dy = targetEdge.y - sourceEdge.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+
   // 优先使用直线连接，确保一致性
   let connectionType = 'straight'
   let pathOptions: any = {}
-  
+  let needsAvoidance = false
+
   // 检查是否为关键连接（外部网络→PREROUTING，PREROUTING→路由决策）
   const isKeyConnection = (
-    (sourceNode.id === 'interface-external' && targetNode.id === 'prerouting') ||
-    (sourceNode.id === 'prerouting' && targetNode.id === 'routing-decision')
+      (sourceNode.id === 'interface-external' && targetNode.id === 'prerouting') ||
+      (sourceNode.id === 'prerouting' && targetNode.id === 'routing-decision')
   )
-  
+
   // 关键连接始终保持直线，不进行避让优化
   if (isKeyConnection) {
     connectionType = 'straight'
-    pathOptions = {} // 清空路径选项，使用默认直线
+    pathOptions = {
+      // 使用边缘位置进行连接
+      sourceX: sourceEdge.x,
+      sourceY: sourceEdge.y,
+      targetX: targetEdge.x,
+      targetY: targetEdge.y
+    }
   } else {
     // 检测是否需要避让其他节点
-    const needsAvoidance = checkNodeAvoidance(sourceNode, targetNode, allNodes)
-    
+    needsAvoidance = checkNodeAvoidance(sourceNode, targetNode, allNodes)
+
     // 只有在必须避让时才使用曲线连接
     if (needsAvoidance) {
       connectionType = 'smoothstep'
-    
+
       // 水平连接（左右节点）
       if (Math.abs(dy) < 50 && Math.abs(dx) > 100) {
         pathOptions = {
-          borderRadius: 6,
-          offset: 25, // 增加偏移避让节点
+          borderRadius: 8,
+          offset: 30,
           centerX: 0.5,
-          centerY: 0.5
+          centerY: 0.5,
+          sourceX: sourceEdge.x,
+          sourceY: sourceEdge.y,
+          targetX: targetEdge.x,
+          targetY: targetEdge.y
         }
       }
       // 垂直连接（上下节点）
       else if (Math.abs(dx) < 50 && Math.abs(dy) > 80) {
         pathOptions = {
-          borderRadius: 10,
-          offset: 30,
+          borderRadius: 12,
+          offset: 35,
           centerX: 0.5,
-          centerY: 0.5
+          centerY: 0.5,
+          sourceX: sourceEdge.x,
+          sourceY: sourceEdge.y,
+          targetX: targetEdge.x,
+          targetY: targetEdge.y
         }
       }
       // 对角线连接
       else {
         pathOptions = {
-          borderRadius: 12,
-          offset: Math.max(25, distance / 8),
+          borderRadius: 15,
+          offset: Math.max(30, distance / 6),
           centerX: dx > 0 ? 0.3 : 0.7,
-          centerY: dy > 0 ? 0.3 : 0.7
+          centerY: dy > 0 ? 0.3 : 0.7,
+          sourceX: sourceEdge.x,
+          sourceY: sourceEdge.y,
+          targetX: targetEdge.x,
+          targetY: targetEdge.y
         }
+      }
+    } else {
+      // 直线连接也使用边缘位置
+      pathOptions = {
+        sourceX: sourceEdge.x,
+        sourceY: sourceEdge.y,
+        targetX: targetEdge.x,
+        targetY: targetEdge.y
       }
     }
   }
-  
-  // 计算箭头大小 - 统一标准
-  let arrowSize = 24 // 默认大小
+
+// 计算箭头大小 - 增大50%以提升可见性
+  let arrowSize = 27 // 默认大小（18 * 1.5）
   if (distance < 150) {
-    arrowSize = 20
+    arrowSize = 21 // 14 * 1.5
   } else if (distance > 300) {
-    arrowSize = 28
+    arrowSize = 33 // 22 * 1.5
   }
-  
+
   // 计算Z-index层级
   const zIndex = calculateEdgeZIndex(sourceNode, targetNode, allEdges)
-  
+
   return {
-    needsOptimization: needsAvoidance, // 只有需要避让时才标记为需要优化
+    needsOptimization: needsAvoidance,
     connectionType,
     pathOptions,
     arrowSize,
-    zIndex
+    zIndex,
+    edgePositions: {
+      source: sourceEdge,
+      target: targetEdge
+    }
   }
 }
 
 // 检查是否需要避让其他节点
 const checkNodeAvoidance = (sourceNode: any, targetNode: any, allNodes: any[]) => {
+  // 添加安全检查
+  if (!sourceNode?.position || !targetNode?.position) {
+    return false
+  }
+
   const path = {
     x1: sourceNode.position.x,
     y1: sourceNode.position.y,
     x2: targetNode.position.x,
     y2: targetNode.position.y
   }
-  
+
   // 检查路径是否经过其他节点
   return allNodes.some(node => {
     if (node.id === sourceNode.id || node.id === targetNode.id) return false
     
+    // 添加安全检查，防止node.position为undefined
+    if (!node?.position) return false
+
     const nodeCenter = {
       x: node.position.x + 50, // 假设节点宽度100px
       y: node.position.y + 40   // 假设节点高度80px
     }
-    
+
     // 计算点到线段的距离
     const distance = pointToLineDistance(nodeCenter, path)
     return distance < 60 // 如果距离小于60px，需要避让
@@ -2265,21 +2401,21 @@ const pointToLineDistance = (point: any, line: any) => {
   const B = point.y - line.y1
   const C = line.x2 - line.x1
   const D = line.y2 - line.y1
-  
+
   const dot = A * C + B * D
   const lenSq = C * C + D * D
-  
+
   if (lenSq === 0) return Math.sqrt(A * A + B * B)
-  
+
   let param = dot / lenSq
   param = Math.max(0, Math.min(1, param))
-  
+
   const xx = line.x1 + param * C
   const yy = line.y1 + param * D
-  
+
   const dx = point.x - xx
   const dy = point.y - yy
-  
+
   return Math.sqrt(dx * dx + dy * dy)
 }
 
@@ -2287,17 +2423,17 @@ const pointToLineDistance = (point: any, line: any) => {
 const calculateEdgeZIndex = (sourceNode: any, targetNode: any, allEdges: any[]) => {
   // 基础层级
   let baseZIndex = 1000
-  
+
   // 关键路径获得更高层级
   if (sourceNode.data?.chainType === 'forward' || targetNode.data?.chainType === 'forward') {
     baseZIndex += 100
   }
-  
+
   // 根据连接重要性调整
   if (sourceNode.type === 'interface' || targetNode.type === 'interface') {
     baseZIndex += 50
   }
-  
+
   return baseZIndex
 }
 
@@ -2309,7 +2445,7 @@ const optimizeEdgeZIndex = (edges: any[]) => {
     const priorityB = getEdgePriority(b)
     return priorityB - priorityA
   })
-  
+
   // 分配Z-index
   edges.forEach((edge, index) => {
     edge.style = {
@@ -2322,71 +2458,166 @@ const optimizeEdgeZIndex = (edges: any[]) => {
 // 获取边的优先级
 const getEdgePriority = (edge: any) => {
   let priority = 0
-  
+
   // 数据流类型优先级
   if (edge.data?.flowType === 'forward') priority += 100
   if (edge.data?.flowType === 'input') priority += 80
   if (edge.data?.flowType === 'output') priority += 60
-  
+
   // 带宽优先级
   if (edge.data?.bandwidth === 'very-high') priority += 50
   if (edge.data?.bandwidth === 'high') priority += 30
   if (edge.data?.bandwidth === 'medium') priority += 20
-  
+
   // 关键路径优先级
   if (edge.data?.priority === 'critical') priority += 200
   if (edge.data?.priority === 'high') priority += 150
-  
+
   return priority
 }
 
-// 智能自动优化布局功能 - 全面增强版
+// 智能自动优化布局功能 - 边缘对齐增强版
 const autoOptimizeLayout = () => {
   const nodes = flowElements.value.filter((el: any) => 'type' in el) as Node[]
   const edges = flowElements.value.filter((el: any) => 'source' in el) as Edge[]
-  
-  ElMessage.info('正在进行智能布局优化...')
-  
+
+  ElMessage.info('正在进行智能布局优化（边缘对齐）...')
+
   // 保存当前状态到历史记录
   saveOptimizationState()
-  
-  // 1. 基于当前手动调整的节点位置，计算最优连线路径
-  const optimizedPaths = calculateOptimalConnectionPaths(nodes, edges)
-  
-  // 2. 智能调整箭头方向和位置，避免交叉和重叠
+
+  // 1. 应用改进的层次化布局
+  applyHierarchicalLayout(nodes, edges)
+
+  // 2. 优化连接路径（使用边缘对齐）
+  optimizeConnectionPathsWithEdgeAlignment(edges, nodes)
+
+  // 3. 智能调整箭头方向和位置，避免交叉和重叠
   const arrowOptimizations = optimizeArrowDirections(edges, nodes)
-  
-  // 3. 应用差异化样式
+
+  // 4. 应用差异化样式
   applyDifferentiatedStyles(edges)
-  
-  // 4. 减少不必要的连线弯曲和转折
+
+  // 5. 减少不必要的连线弯曲和转折
   const straightenedPaths = straightenUnnecessaryBends(edges, nodes)
-  
-  // 5. 为活跃连接添加动态视觉效果
+
+  // 6. 优化节点间距和对齐
+  optimizeNodeSpacingAndAlignment(nodes, edges)
+
+  // 7. 为活跃连接添加动态视觉效果
   addDynamicVisualEffects(edges)
-  
+
   // 应用所有优化
   let totalOptimizations = 0
-  
-  optimizedPaths.forEach((optimization, edgeId) => {
-    const edge = edges.find(e => e.id === edgeId)
-    if (edge) {
-      applyPathOptimization(edge, optimization)
-      totalOptimizations++
-    }
-  })
-  
+
   arrowOptimizations.forEach((optimization, edgeId) => {
     const edge = edges.find(e => e.id === edgeId)
     if (edge) {
       applyArrowOptimization(edge, optimization)
+      totalOptimizations++
     }
   })
-  
+
   // 计算连接质量评分
   calculateConnectionQuality(edges, nodes)
+
+  ElMessage.success(`智能优化完成！优化了 ${totalOptimizations} 个连接，应用边缘对齐和层次化布局`)
+}
+
+// 应用层次化布局
+const applyHierarchicalLayout = (nodes: any[], edges: any[]) => {
+  // 定义拓扑层次
+  const layers = {
+    0: ['interface-external'], // 外部接口
+    1: ['prerouting'], // 预路由
+    2: ['routing-decision'], // 路由决策
+    3: ['input', 'forward'], // 输入/转发
+    4: ['local-process', 'postrouting'], // 本地进程/后路由
+    5: ['output'], // 输出
+    6: ['interface-internal'] // 内部接口
+  }
+
+  const layerHeight = 150
+  const nodeSpacing = 200
+  const startY = 100
+  const startX = 150
+
+  Object.entries(layers).forEach(([layerIndex, nodeIds]) => {
+    const layer = parseInt(layerIndex)
+    const y = startY + layer * layerHeight
+    
+    nodeIds.forEach((nodeId, index) => {
+      const node = nodes.find(n => n.id === nodeId)
+      if (node) {
+        node.position = {
+          x: startX + index * nodeSpacing - (nodeIds.length - 1) * nodeSpacing / 2,
+          y: y
+        }
+      }
+    })
+  })
+}
+
+// 优化连接路径（边缘对齐版本）
+const optimizeConnectionPathsWithEdgeAlignment = (edges: any[], nodes: any[]) => {
+  let optimizedCount = 0
+
+  edges.forEach(edge => {
+    const sourceNode = nodes.find(n => n.id === edge.source)
+    const targetNode = nodes.find(n => n.id === edge.target)
+
+    if (sourceNode && targetNode) {
+      const optimalPath = calculateOptimalPath(sourceNode, targetNode, nodes, edges)
+
+      // 应用新的路径配置
+      edge.type = optimalPath.connectionType
+      edge.pathOptions = optimalPath.pathOptions
+      edge.style = {
+        ...edge.style,
+        zIndex: optimalPath.zIndex,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round'
+      }
+
+      if (edge.markerEnd) {
+        edge.markerEnd.width = optimalPath.arrowSize
+        edge.markerEnd.height = optimalPath.arrowSize
+        edge.markerEnd.markerUnits = 'userSpaceOnUse'
+        edge.markerEnd.orient = 'auto-start-reverse'
+      }
+
+      optimizedCount++
+    }
+  })
+
+  console.log(`已优化 ${optimizedCount} 个连接路径，应用边缘对齐`)
+}
+
+// 优化节点间距和对齐
+const optimizeNodeSpacingAndAlignment = (nodes: any[], edges: any[]) => {
+  // 确保最小间距
+  const minSpacing = 180
   
-  ElMessage.success(`智能优化完成！优化了 ${totalOptimizations} 个连接，提升了整体布局质量`)
+  nodes.forEach((node, i) => {
+    nodes.slice(i + 1).forEach(otherNode => {
+      if (!node.position || !otherNode.position) return
+      
+      const dx = otherNode.position.x - node.position.x
+      const dy = otherNode.position.y - node.position.y
+      const distance = Math.sqrt(dx * dx + dy * dy)
+      
+      if (distance < minSpacing && distance > 0) {
+        const pushDistance = (minSpacing - distance) / 2
+        const unitX = dx / distance
+        const unitY = dy / distance
+        
+        node.position.x -= unitX * pushDistance
+        node.position.y -= unitY * pushDistance
+        otherNode.position.x += unitX * pushDistance
+        otherNode.position.y += unitY * pushDistance
+      }
+    })
+  })
 }
 
 // 检测两条边是否相交
@@ -2395,13 +2626,16 @@ const edgesIntersect = (edge1: Edge, edge2: Edge, nodes: Node[]): boolean => {
   const node1End = nodes.find(n => n.id === edge1.target)
   const node2Start = nodes.find(n => n.id === edge2.source)
   const node2End = nodes.find(n => n.id === edge2.target)
-  
-  if (!node1Start || !node1End || !node2Start || !node2End) return false
-  
+
+  // 添加安全检查，确保所有节点和position都存在
+  if (!node1Start?.position || !node1End?.position || !node2Start?.position || !node2End?.position) {
+    return false
+  }
+
   // 简化的线段相交检测
   return lineSegmentsIntersect(
-    node1Start.position, node1End.position,
-    node2Start.position, node2End.position
+      node1Start.position, node1End.position,
+      node2Start.position, node2End.position
   )
 }
 
@@ -2416,34 +2650,46 @@ const lineSegmentsIntersect = (p1: any, p2: any, p3: any, p4: any): boolean => {
 // 计算最优连接路径
 const calculateOptimalConnectionPaths = (nodes: any[], edges: any[]) => {
   const optimizations = new Map()
-  
+
   edges.forEach(edge => {
     const sourceNode = nodes.find(n => n.id === edge.source)
     const targetNode = nodes.find(n => n.id === edge.target)
-    
+
     if (sourceNode && targetNode) {
       const optimization = calculateBestPath(sourceNode, targetNode, nodes, edges)
       optimizations.set(edge.id, optimization)
     }
   })
-  
+
   return optimizations
 }
 
 // 计算最佳路径 - 统一标准化处理
 const calculateBestPath = (sourceNode: any, targetNode: any, allNodes: any[], allEdges: any[]) => {
+  // 添加安全检查，防止position属性为undefined
+  if (!sourceNode?.position || !targetNode?.position) {
+    console.warn('Node position is undefined in calculateBestPath:', { sourceNode, targetNode })
+    return {
+      type: 'straight',
+      controlPoints: [],
+      quality: 100,
+      distance: 0,
+      needsOptimization: false
+    }
+  }
+
   const dx = targetNode.position.x - sourceNode.position.x
   const dy = targetNode.position.y - sourceNode.position.y
   const distance = Math.sqrt(dx * dx + dy * dy)
-  
+
   // 统一使用直线连接作为默认选择
   let pathType = 'straight'
   let controlPoints: any[] = []
   let quality = 100
-  
+
   // 检查是否需要避让其他节点
   const obstacles = findObstacleNodes(sourceNode, targetNode, allNodes)
-  
+
   if (obstacles.length > 0) {
     // 只有在必须避让时才使用曲线路径
     const avoidancePath = calculateAvoidancePath(sourceNode, targetNode, obstacles)
@@ -2455,7 +2701,7 @@ const calculateBestPath = (sourceNode: any, targetNode: any, allNodes: any[], al
     pathType = 'straight'
     quality = 100 // 直线连接质量最高
   }
-  
+
   return {
     type: pathType,
     controlPoints,
@@ -2465,91 +2711,223 @@ const calculateBestPath = (sourceNode: any, targetNode: any, allNodes: any[], al
   }
 }
 
-// 修复关键连接路径
-const fixKeyConnections = () => {
-  const edges = flowElements.value.filter((el: any) => 'source' in el)
-  
-  edges.forEach((edge: any) => {
-    // 检查是否为关键连接（外部网络→PREROUTING，PREROUTING→路由决策）
-    const isKeyConnection = (
-      (edge.source === 'interface-external' && edge.target === 'prerouting') ||
-      (edge.source === 'prerouting' && edge.target === 'routing-decision')
-    )
-    
-    if (isKeyConnection) {
-      // 强制设置为直线连接
-      edge.type = 'straight'
-      
-      // 移除所有可能导致弯曲的路径选项
-      delete edge.pathOptions
-      delete edge.curvature
-      
-      // 确保箭头正确显示
-      if (edge.markerEnd) {
-        edge.markerEnd.orient = 'auto'
-        edge.markerEnd.markerUnits = 'userSpaceOnUse'
-        edge.markerEnd.refX = 0
-        edge.markerEnd.refY = 0
-      }
-      
-      // 重置样式
-      edge.style = {
-        ...edge.style,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round'
-      }
-    }
-  })
-  
-  ElMessage.success('关键连接路径已修复为直线')
-}
 
-// 标准化连接路径处理
+// 标准化连接路径处理（边缘对齐增强版）
 const standardizeConnectionPaths = () => {
-  // 首先修复关键连接
-  fixKeyConnections()
-  
   const edges = flowElements.value.filter((el: any) => 'source' in el)
   const nodes = flowElements.value.filter((el: any) => 'position' in el)
-  
+
+  let standardizedCount = 0
+
   edges.forEach((edge: any) => {
     const sourceNode = nodes.find(n => n.id === edge.source)
     const targetNode = nodes.find(n => n.id === edge.target)
-    
+
     if (sourceNode && targetNode) {
+      // 使用改进的路径计算，支持边缘对齐
+      const optimalPath = calculateOptimalPath(sourceNode, targetNode, nodes, edges)
+      
       // 检查是否为关键连接（外部网络→PREROUTING，PREROUTING→路由决策）
       const isKeyConnection = (
-        (edge.source === 'interface-external' && edge.target === 'prerouting') ||
-        (edge.source === 'prerouting' && edge.target === 'routing-decision')
+          (edge.source === 'interface-external' && edge.target === 'prerouting') ||
+          (edge.source === 'prerouting' && edge.target === 'routing-decision')
       )
-      
+
       if (isKeyConnection) {
-        // 关键连接强制使用直线
+        // 关键连接强制使用直线，但保持边缘对齐
         edge.type = 'straight'
-        delete edge.pathOptions // 移除路径选项，使用默认直线
-        
-        // 确保箭头指向正确
+        edge.pathOptions = optimalPath.pathOptions // 保留边缘位置信息
+
+        // 确保箭头指向正确，使用边缘对齐
         if (edge.markerEnd) {
-          edge.markerEnd.orient = 'auto'
+          edge.markerEnd.orient = 'auto-start-reverse'
           edge.markerEnd.markerUnits = 'userSpaceOnUse'
-          edge.markerEnd.refX = 0 // 重置箭头位置
+          edge.markerEnd.refX = 0 // 箭头尖端对齐到连线终点
+          edge.markerEnd.refY = 0
+          edge.markerEnd.width = optimalPath.arrowSize
+          edge.markerEnd.height = optimalPath.arrowSize
         }
-        
+
         // 重置样式确保直线显示
         edge.style = {
           ...edge.style,
           strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          zIndex: optimalPath.zIndex
+        }
+
+        standardizedCount++
+      } else {
+        // 非关键连接也应用边缘对齐优化
+        edge.type = optimalPath.connectionType
+        edge.pathOptions = optimalPath.pathOptions
+        edge.style = {
+          ...edge.style,
+          zIndex: optimalPath.zIndex,
+          strokeLinecap: 'round',
           strokeLinejoin: 'round'
         }
+
+        if (edge.markerEnd) {
+          edge.markerEnd.width = optimalPath.arrowSize
+          edge.markerEnd.height = optimalPath.arrowSize
+          edge.markerEnd.orient = 'auto-start-reverse'
+          edge.markerEnd.markerUnits = 'userSpaceOnUse'
+          edge.markerEnd.refX = 0
+          edge.markerEnd.refY = 0
+        }
+
+        standardizedCount++
       }
     }
   })
+
+  ElMessage.success(`连接路径已标准化，处理了 ${standardizedCount} 个连接，应用边缘对齐显示`)
+}
+
+// 连线避让机制优化
+const optimizeConnectionAvoidance = () => {
+  const edges = flowElements.value.filter((el: any) => 'source' in el)
+  const nodes = flowElements.value.filter((el: any) => 'position' in el)
+
+  let optimizedCount = 0
+  const avoidanceMap = new Map()
+
+  // 检测需要避让的连线
+  edges.forEach((edge: any, index: number) => {
+    const sourceNode = nodes.find(n => n.id === edge.source)
+    const targetNode = nodes.find(n => n.id === edge.target)
+
+    if (sourceNode && targetNode) {
+      // 检查与其他连线的交叉情况
+      const crossingEdges = edges.filter((otherEdge: any, otherIndex: number) => {
+        if (index === otherIndex) return false
+        
+        const otherSource = nodes.find(n => n.id === otherEdge.source)
+        const otherTarget = nodes.find(n => n.id === otherEdge.target)
+        
+        if (!otherSource || !otherTarget) return false
+        
+        return edgesIntersect(edge, otherEdge, nodes)
+      })
+
+      if (crossingEdges.length > 0) {
+        // 计算避让路径
+        const avoidancePath = calculateConnectionAvoidancePath(sourceNode, targetNode, nodes, crossingEdges)
+        avoidanceMap.set(edge.id, avoidancePath)
+      }
+    }
+  })
+
+  // 应用避让优化
+  avoidanceMap.forEach((avoidancePath, edgeId) => {
+    const edge = edges.find(e => e.id === edgeId)
+    if (edge) {
+      // 应用避让路径
+      edge.type = avoidancePath.connectionType
+      edge.pathOptions = avoidancePath.pathOptions
+      edge.style = {
+        ...edge.style,
+        zIndex: avoidancePath.zIndex,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round'
+      }
+
+      if (edge.markerEnd) {
+        edge.markerEnd.width = avoidancePath.arrowSize
+        edge.markerEnd.height = avoidancePath.arrowSize
+        edge.markerEnd.orient = 'auto-start-reverse'
+        edge.markerEnd.refX = 0
+        edge.markerEnd.refY = 0
+      }
+
+      optimizedCount++
+    }
+  })
+
+  ElMessage.success(`连线避让优化完成，处理了 ${optimizedCount} 个交叉连接`)
+}
+
+// 计算连接避让路径
+const calculateConnectionAvoidancePath = (sourceNode: any, targetNode: any, allNodes: any[], crossingEdges: any[]) => {
+  if (!sourceNode?.position || !targetNode?.position) {
+    return {
+      connectionType: 'straight',
+      pathOptions: {},
+      arrowSize: 17,
+      zIndex: 1000
+    }
+  }
+
+  // 计算边缘位置
+  const sourceEdge = getNodeEdgePosition(sourceNode, targetNode, true)
+  const targetEdge = getNodeEdgePosition(targetNode, sourceNode, false)
   
-  ElMessage.success('连接路径已标准化，关键连接使用直线路径')
+  const dx = targetEdge.x - sourceEdge.x
+  const dy = targetEdge.y - sourceEdge.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+
+  // 根据交叉情况选择避让策略
+  let connectionType = 'smoothstep'
+  let pathOptions: any = {}
+
+  // 计算避让偏移量
+  const baseOffset = 40
+  const avoidanceOffset = baseOffset + (crossingEdges.length * 15)
+
+  // 水平连接的避让
+  if (Math.abs(dy) < Math.abs(dx)) {
+    pathOptions = {
+      borderRadius: 15,
+      offset: avoidanceOffset,
+      centerX: 0.5,
+      centerY: dy > 0 ? 0.3 : 0.7, // 根据方向调整
+      sourceX: sourceEdge.x,
+      sourceY: sourceEdge.y,
+      targetX: targetEdge.x,
+      targetY: targetEdge.y
+    }
+  }
+  // 垂直连接的避让
+  else {
+    pathOptions = {
+      borderRadius: 15,
+      offset: avoidanceOffset,
+      centerX: dx > 0 ? 0.3 : 0.7, // 根据方向调整
+      centerY: 0.5,
+      sourceX: sourceEdge.x,
+      sourceY: sourceEdge.y,
+      targetX: targetEdge.x,
+      targetY: targetEdge.y
+    }
+  }
+
+// 箭头大小 - 增大50%
+  let arrowSize = 30
+  if (distance < 150) {
+    arrowSize = 24
+  } else if (distance > 300) {
+    arrowSize = 36
+  }
+
+  // 提高避让连线的层级
+  const zIndex = 1100 + crossingEdges.length * 10
+
+  return {
+    connectionType,
+    pathOptions,
+    arrowSize,
+    zIndex
+  }
 }
 
 // 查找障碍节点
 const findObstacleNodes = (sourceNode: any, targetNode: any, allNodes: any[]) => {
+  // 添加安全检查
+  if (!sourceNode?.position || !targetNode?.position) {
+    return []
+  }
+
   const obstacles: any[] = []
   const path = {
     x1: sourceNode.position.x + 50, // 节点中心
@@ -2557,14 +2935,14 @@ const findObstacleNodes = (sourceNode: any, targetNode: any, allNodes: any[]) =>
     x2: targetNode.position.x + 50,
     y2: targetNode.position.y + 40
   }
-  
+
   allNodes.forEach(node => {
-    if (node.id !== sourceNode.id && node.id !== targetNode.id) {
+    if (node.id !== sourceNode.id && node.id !== targetNode.id && node.position) {
       const nodeCenter = {
         x: node.position.x + 50,
         y: node.position.y + 40
       }
-      
+
       const distance = pointToLineDistance(nodeCenter, path)
       if (distance < 70) { // 如果节点太接近连线路径
         obstacles.push({
@@ -2575,54 +2953,42 @@ const findObstacleNodes = (sourceNode: any, targetNode: any, allNodes: any[]) =>
       }
     }
   })
-  
+
   return obstacles.sort((a, b) => a.distance - b.distance)
 }
 
-// 计算避让路径
-const calculateAvoidancePath = (sourceNode: any, targetNode: any, obstacles: any[]) => {
-  const controlPoints: any[] = []
-  let quality = 80
-  
-  // 为每个障碍计算避让点
-  obstacles.forEach((obstacle, index) => {
-    const avoidancePoint = calculateAvoidancePoint(sourceNode, targetNode, obstacle.node)
-    controlPoints.push(avoidancePoint)
-    quality -= 5 // 每个避让点降低质量评分
-  })
-  
-  return {
-    type: 'bezier',
-    controlPoints,
-    quality: Math.max(quality, 50)
-  }
-}
+
 
 // 计算避让点
 const calculateAvoidancePoint = (sourceNode: any, targetNode: any, obstacleNode: any) => {
+  // 添加安全检查
+  if (!sourceNode?.position || !targetNode?.position || !obstacleNode?.position) {
+    return { x: 0, y: 0 }
+  }
+
   const sx = sourceNode.position.x + 50
   const sy = sourceNode.position.y + 40
   const tx = targetNode.position.x + 50
   const ty = targetNode.position.y + 40
   const ox = obstacleNode.position.x + 50
   const oy = obstacleNode.position.y + 40
-  
+
   // 计算垂直于连线的避让方向
   const dx = tx - sx
   const dy = ty - sy
   const perpX = -dy
   const perpY = dx
   const perpLength = Math.sqrt(perpX * perpX + perpY * perpY)
-  
-  if (perpLength === 0) return { x: ox, y: oy }
-  
+
+  if (perpLength === 0) return {x: ox, y: oy}
+
   // 标准化垂直向量
   const unitPerpX = perpX / perpLength
   const unitPerpY = perpY / perpLength
-  
+
   // 避让距离
   const avoidanceDistance = 80
-  
+
   return {
     x: ox + unitPerpX * avoidanceDistance,
     y: oy + unitPerpY * avoidanceDistance
@@ -2632,17 +2998,17 @@ const calculateAvoidancePoint = (sourceNode: any, targetNode: any, obstacleNode:
 // 优化箭头方向
 const optimizeArrowDirections = (edges: any[], nodes: any[]) => {
   const optimizations = new Map()
-  
+
   edges.forEach(edge => {
     const sourceNode = nodes.find(n => n.id === edge.source)
     const targetNode = nodes.find(n => n.id === edge.target)
-    
+
     if (sourceNode && targetNode) {
       const arrowOptimization = calculateOptimalArrowDirection(sourceNode, targetNode, edge)
       optimizations.set(edge.id, arrowOptimization)
     }
   })
-  
+
   return optimizations
 }
 
@@ -2651,10 +3017,10 @@ const calculateOptimalArrowDirection = (sourceNode: any, targetNode: any, edge: 
   const dx = targetNode.position.x - sourceNode.position.x
   const dy = targetNode.position.y - sourceNode.position.y
   const distance = Math.sqrt(dx * dx + dy * dy)
-  
+
   // 计算箭头角度
   const angle = Math.atan2(dy, dx) * (180 / Math.PI)
-  
+
   // 根据距离调整箭头大小
   let size = 20
   if (distance < 150) {
@@ -2662,11 +3028,11 @@ const calculateOptimalArrowDirection = (sourceNode: any, targetNode: any, edge: 
   } else if (distance > 300) {
     size = 24
   }
-  
+
   // 计算箭头位置偏移，避免被节点遮挡
   const nodeRadius = 50
   const offset = nodeRadius + 8
-  
+
   return {
     angle,
     size,
@@ -2711,35 +3077,35 @@ const adjustNodesForBetterLayout = (nodes: Node[], edges: Edge[]) => {
   const repulsionStrength = 1000
   const attractionStrength = 0.1
   const dampening = 0.9
-  
+
   for (let iter = 0; iter < iterations; iter++) {
     nodes.forEach(node => {
       let fx = 0, fy = 0
-      
+
       // 节点间排斥力
       nodes.forEach(otherNode => {
         if (node.id !== otherNode.id) {
           const dx = node.position.x - otherNode.position.x
           const dy = node.position.y - otherNode.position.y
           const distance = Math.sqrt(dx * dx + dy * dy) || 1
-          
+
           const force = repulsionStrength / (distance * distance)
           fx += (dx / distance) * force
           fy += (dy / distance) * force
         }
       })
-      
+
       // 连接边的吸引力
       edges.forEach(edge => {
         if (edge.source === node.id || edge.target === node.id) {
           const connectedNodeId = edge.source === node.id ? edge.target : edge.source
           const connectedNode = nodes.find(n => n.id === connectedNodeId)
-          
+
           if (connectedNode) {
             const dx = connectedNode.position.x - node.position.x
             const dy = connectedNode.position.y - node.position.y
             const distance = Math.sqrt(dx * dx + dy * dy) || 1
-            
+
             const idealDistance = 200
             const force = attractionStrength * (distance - idealDistance)
             fx += (dx / distance) * force
@@ -2747,11 +3113,11 @@ const adjustNodesForBetterLayout = (nodes: Node[], edges: Edge[]) => {
           }
         }
       })
-      
+
       // 应用力并添加阻尼
       node.position.x += fx * dampening
       node.position.y += fy * dampening
-      
+
       // 边界约束
       node.position.x = Math.max(100, Math.min(1100, node.position.x))
       node.position.y = Math.max(100, Math.min(500, node.position.y))
@@ -2762,29 +3128,33 @@ const adjustNodesForBetterLayout = (nodes: Node[], edges: Edge[]) => {
 const resetView = () => {
   // 询问用户是否确认重置布局
   ElMessageBox.confirm(
-    '重置视图将清除所有自定义布局设置，是否继续？',
-    '确认重置',
-    {
-      confirmButtonText: '确认重置',
-      cancelButtonText: '取消',
-      type: 'warning',
-    }
+      '重置视图将恢复到参考图片中的预设布局，是否继续？',
+      '确认重置',
+      {
+        confirmButtonText: '确认重置',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
   ).then(() => {
     // 清除保存的布局状态
     localStorage.removeItem('topology-layout-state')
     localStorage.removeItem('topology-node-positions')
     localStorage.removeItem('topology-layout-config')
-    
+
     selectedFlow.value = ''
     selectedNodeInfo.value = null
     protocolFilter.value = ''
     portFilter.value = ''
-    initializeFlowElements()
+    
+    // 应用预设布局，无需重新初始化
+    applyPresetLayout()
+    
+    // 添加平滑过渡效果
     nextTick(() => {
       fitView()
+      // 显示重置成功提示
+      ElMessage.success('视图已重置到图片预设布局')
     })
-    
-    ElMessage.success('视图已重置到默认状态')
   }).catch(() => {
     ElMessage.info('已取消重置操作')
   })
@@ -2832,22 +3202,28 @@ const optimizeLayout = () => {
   // 简单的力导向布局算法
   const nodes = flowElements.value.filter(el => 'type' in el) as Node[]
   const edges = flowElements.value.filter(el => 'source' in el) as Edge[]
-  
+
   // 计算节点间的理想距离
   const idealDistance = 200
   const iterations = 50
-  
+
   for (let i = 0; i < iterations; i++) {
     nodes.forEach(node => {
+      // 添加安全检查，确保node.position存在
+      if (!node.position) {
+        console.warn('Node position is undefined:', node.id)
+        return
+      }
+
       let fx = 0, fy = 0
-      
+
       // 排斥力
       nodes.forEach(otherNode => {
-        if (node.id !== otherNode.id) {
+        if (node.id !== otherNode.id && otherNode.position) {
           const dx = node.position.x - otherNode.position.x
           const dy = node.position.y - otherNode.position.y
           const distance = Math.sqrt(dx * dx + dy * dy) || 1
-          
+
           if (distance < idealDistance) {
             const force = (idealDistance - distance) / distance
             fx += dx * force * 0.1
@@ -2855,56 +3231,66 @@ const optimizeLayout = () => {
           }
         }
       })
-      
+
       // 吸引力（连接的节点）
       edges.forEach(edge => {
         if (edge.source === node.id || edge.target === node.id) {
           const connectedNodeId = edge.source === node.id ? edge.target : edge.source
           const connectedNode = nodes.find(n => n.id === connectedNodeId)
-          
-          if (connectedNode) {
+
+          if (connectedNode && connectedNode.position) {
             const dx = connectedNode.position.x - node.position.x
             const dy = connectedNode.position.y - node.position.y
             const distance = Math.sqrt(dx * dx + dy * dy) || 1
-            
+
             const force = Math.log(distance / idealDistance) * 0.05
             fx += dx * force
             fy += dy * force
           }
         }
       })
-      
+
       // 应用力
       node.position.x += fx
       node.position.y += fy
-      
+
       // 边界约束
       node.position.x = Math.max(50, Math.min(1200, node.position.x))
       node.position.y = Math.max(50, Math.min(600, node.position.y))
     })
   }
-  
+
   ElMessage.success('布局已优化')
 }
 
 // 工具方法
 const getInterfaceIcon = (interfaceType: string): string => {
   switch (interfaceType) {
-    case 'external': return '🌐'
-    case 'internal': return '🏠'
-    case 'docker': return '🐳'
-    case 'wifi': return '📡'
-    default: return '🖧'
+    case 'external':
+      return '🌐'
+    case 'internal':
+      return '🏠'
+    case 'docker':
+      return '🐳'
+    case 'wifi':
+      return '📡'
+    default:
+      return '🖧'
   }
 }
 
 const getTableTagType = (table: string): string => {
   switch (table) {
-    case 'raw': return 'danger'
-    case 'mangle': return 'warning'
-    case 'nat': return 'info'
-    case 'filter': return 'success'
-    default: return 'default'
+    case 'raw':
+      return 'danger'
+    case 'mangle':
+      return 'warning'
+    case 'nat':
+      return 'info'
+    case 'filter':
+      return 'success'
+    default:
+      return 'default'
   }
 }
 </script>
@@ -2924,7 +3310,7 @@ const getTableTagType = (table: string): string => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .topology-header h2 {
@@ -2953,7 +3339,7 @@ const getTableTagType = (table: string): string => {
   background: white;
   border-right: 1px solid #e4e7ed;
   overflow-y: auto;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
 }
 
 .topology-main {
@@ -2975,7 +3361,7 @@ const getTableTagType = (table: string): string => {
 .legend-card, .node-info-card, .stats-card {
   margin-bottom: 20px;
   border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
 .legend-items {
@@ -3097,10 +3483,13 @@ const getTableTagType = (table: string): string => {
   background: white;
   border: 3px solid #e1e5e9;
   border-radius: 16px;
-  padding: 20px;
-  min-width: 160px;
-  min-height: 80px;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  padding: 16px;
+  width: 180px;
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   position: relative;
@@ -3121,7 +3510,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.chain-node:hover) {
   transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.2);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
   border-color: #409EFF;
 }
 
@@ -3131,7 +3520,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.chain-node.highlighted) {
   border-color: #409EFF;
-  box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.3), 0 12px 32px rgba(0,0,0,0.2);
+  box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.3), 0 12px 32px rgba(0, 0, 0, 0.2);
   transform: translateY(-2px) scale(1.05);
 }
 
@@ -3161,7 +3550,9 @@ const getTableTagType = (table: string): string => {
 }
 
 :deep(.chain-header) {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: center;
 }
 
 :deep(.chain-title) {
@@ -3169,23 +3560,27 @@ const getTableTagType = (table: string): string => {
   font-size: 14px;
   font-weight: 600;
   color: #303133;
+  text-align: center;
+  line-height: 1.2;
 }
 
 :deep(.chain-tables) {
   display: flex;
-  gap: 4px;
-  margin-bottom: 8px;
+  gap: 3px;
+  margin-bottom: 6px;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 :deep(.table-tag) {
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 500;
   color: white;
   cursor: pointer;
   transition: all 0.2s ease;
+  line-height: 1;
 }
 
 :deep(.table-tag:hover) {
@@ -3225,7 +3620,7 @@ const getTableTagType = (table: string): string => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   position: relative;
@@ -3249,7 +3644,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.interface-node:hover) {
   transform: scale(1.1);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 :deep(.interface-node:hover::after) {
@@ -3258,7 +3653,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.interface-node.highlighted) {
   border-color: #67C23A;
-  box-shadow: 0 0 0 6px rgba(103, 194, 58, 0.3), 0 8px 24px rgba(0,0,0,0.2);
+  box-shadow: 0 0 0 6px rgba(103, 194, 58, 0.3), 0 8px 24px rgba(0, 0, 0, 0.2);
   transform: scale(1.15);
 }
 
@@ -3284,21 +3679,20 @@ const getTableTagType = (table: string): string => {
   text-align: center;
 }
 
-/* 决策节点样式 */
+/* 决策节点样式 - 标准正方形框体 */
 :deep(.decision-node) {
   background: linear-gradient(135deg, #FFC107 0%, #FF9800 100%);
   border: 3px solid #F57C00;
-  border-radius: 12px;
-  width: 120px;
-  height: 80px;
+  border-radius: 8px;
+  width: 100px;
+  height: 100px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
-  transform: rotate(45deg);
   position: relative;
 }
 
@@ -3310,15 +3704,15 @@ const getTableTagType = (table: string): string => {
   right: -3px;
   bottom: -3px;
   background: linear-gradient(135deg, #FFD54F, #FF8F00);
-  border-radius: 12px;
+  border-radius: 8px;
   z-index: -1;
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
 :deep(.decision-node:hover) {
-  transform: rotate(45deg) scale(1.1);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 :deep(.decision-node:hover::before) {
@@ -3326,40 +3720,40 @@ const getTableTagType = (table: string): string => {
 }
 
 :deep(.decision-node.highlighted) {
-  box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.4), 0 8px 24px rgba(0,0,0,0.2);
-  transform: rotate(45deg) scale(1.15);
+  box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.4), 0 8px 24px rgba(0, 0, 0, 0.2);
+  transform: scale(1.08);
 }
 
 :deep(.decision-icon) {
-  font-size: 20px;
-  transform: rotate(-45deg);
+  font-size: 24px;
+  margin-bottom: 6px;
 }
 
 :deep(.decision-label) {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: white;
   text-align: center;
-  transform: rotate(-45deg);
-  margin-top: 2px;
+  line-height: 1.2;
 }
 
-/* 进程节点样式 */
+/* 进程节点样式 - 增大尺寸25%，优化内边距 */
 :deep(.process-node) {
   background: linear-gradient(135deg, #9C27B0 0%, #673AB7 100%);
   border: 3px solid #7B1FA2;
   border-radius: 16px;
-  width: 110px;
-  height: 80px;
+  width: 140px;
+  height: 100px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  padding: 12px;
 }
 
 :deep(.process-node::before) {
@@ -3369,13 +3763,13 @@ const getTableTagType = (table: string): string => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
   transition: left 0.6s ease;
 }
 
 :deep(.process-node:hover) {
   transform: translateY(-4px) scale(1.05);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
 }
 
 :deep(.process-node:hover::before) {
@@ -3384,27 +3778,28 @@ const getTableTagType = (table: string): string => {
 
 :deep(.process-node.highlighted) {
   border-color: #E91E63;
-  box-shadow: 0 0 0 4px rgba(156, 39, 176, 0.3), 0 12px 32px rgba(0,0,0,0.25);
+  box-shadow: 0 0 0 4px rgba(156, 39, 176, 0.3), 0 12px 32px rgba(0, 0, 0, 0.25);
   transform: translateY(-2px) scale(1.1);
 }
 
 :deep(.process-icon) {
-  font-size: 20px;
-  margin-bottom: 4px;
+  font-size: 24px;
+  margin-bottom: 8px;
 }
 
 :deep(.process-label) {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: white;
   text-align: center;
+  line-height: 1.3;
 }
 
 /* Vue Flow 控制面板样式 */
 :deep(.vue-flow__controls) {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
 }
 
@@ -3426,7 +3821,7 @@ const getTableTagType = (table: string): string => {
 :deep(.vue-flow__minimap) {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
 }
 
@@ -3438,11 +3833,20 @@ const getTableTagType = (table: string): string => {
   font-size: 12px;
   font-weight: 600;
   color: #2d3748;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.3);
   transition: all 0.3s ease;
   z-index: 2000; /* 确保标签始终在最上层 */
+}
+
+/* 统一连线基础样式 */
+:deep(.vue-flow__edge path) {
+  stroke-width: 4px !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
 }
 
 /* 智能连接路径样式 - 消除节点遮挡 */
@@ -3466,7 +3870,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.vue-flow__edge[data-connection-type="horizontal"] path) {
   stroke-width: 4px;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2));
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
 }
 
 /* 垂直连接优化 */
@@ -3476,7 +3880,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.vue-flow__edge[data-connection-type="vertical"] path) {
   stroke-width: 4px;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2));
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
 }
 
 /* 对角线连接优化 */
@@ -3488,7 +3892,7 @@ const getTableTagType = (table: string): string => {
 :deep(.vue-flow__edge[data-connection-type="diagonal-up"] path),
 :deep(.vue-flow__edge[data-connection-type="diagonal-down"] path) {
   stroke-width: 4px;
-  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.25));
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.25));
   /* 对角线连接使用更明显的阴影 */
 }
 
@@ -3500,7 +3904,7 @@ const getTableTagType = (table: string): string => {
 :deep(.vue-flow__edge.smart-avoidance path) {
   stroke-dasharray: 0;
   opacity: 1;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3)) drop-shadow(0 0 8px currentColor);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3)) drop-shadow(0 0 8px currentColor);
 }
 
 /* 连接密集区域的展开效果 */
@@ -3521,7 +3925,7 @@ const getTableTagType = (table: string): string => {
 /* 手动调整模式增强样式 */
 :deep(.vue-flow__edge.manual-adjust) {
   cursor: grab;
-  stroke-dasharray: 8,4;
+  stroke-dasharray: 8, 4;
   opacity: 0.9;
 }
 
@@ -3532,7 +3936,7 @@ const getTableTagType = (table: string): string => {
 }
 
 :deep(.vue-flow__edge.manual-adjust path) {
-  stroke-dasharray: 8,4;
+  stroke-dasharray: 8, 4;
   opacity: 0.9;
   cursor: pointer;
 }
@@ -3558,7 +3962,7 @@ const getTableTagType = (table: string): string => {
 }
 
 :deep(.vue-flow__edge.optimized-path path) {
-  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.15));
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
 }
 
 /* 连接质量指示样式 */
@@ -3579,7 +3983,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.vue-flow__edge.quality-poor path) {
   stroke: #F44336;
-  stroke-dasharray: 6,3;
+  stroke-dasharray: 6, 3;
   filter: drop-shadow(0 0 4px rgba(244, 67, 54, 0.3));
 }
 
@@ -3606,7 +4010,7 @@ const getTableTagType = (table: string): string => {
   border: 2px solid white;
   border-radius: 50%;
   cursor: grab;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   z-index: 2000;
   transition: all 0.2s ease;
 }
@@ -3614,7 +4018,7 @@ const getTableTagType = (table: string): string => {
 .control-point:hover {
   transform: scale(1.3);
   background: #66B2FF;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .control-point:active {
@@ -3652,7 +4056,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.vue-flow__edge.expanded path) {
   stroke-width: 8px !important;
-  filter: drop-shadow(0 0 16px currentColor) drop-shadow(0 4px 12px rgba(0,0,0,0.4)) !important;
+  filter: drop-shadow(0 0 16px currentColor) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4)) !important;
   animation: expanded-pulse 2s infinite;
 }
 
@@ -3683,7 +4087,7 @@ const getTableTagType = (table: string): string => {
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   z-index: 3000;
   animation: calculation-fade 2s ease-out forwards;
 }
@@ -3714,7 +4118,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.vue-flow__edge.low-quality) {
   filter: drop-shadow(0 0 4px #F44336);
-  stroke-dasharray: 6,3;
+  stroke-dasharray: 6, 3;
 }
 
 /* 连接优化建议提示 */
@@ -3726,7 +4130,7 @@ const getTableTagType = (table: string): string => {
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   z-index: 2500;
   animation: suggestion-bounce 0.5s ease-out;
   pointer-events: none;
@@ -3760,7 +4164,7 @@ const getTableTagType = (table: string): string => {
     filter: drop-shadow(0 0 20px currentColor) drop-shadow(0 0 40px currentColor);
   }
   100% {
-    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2));
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
   }
 }
 
@@ -3781,7 +4185,7 @@ const getTableTagType = (table: string): string => {
   }
   100% {
     stroke-width: 4px;
-    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2));
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
   }
 }
 
@@ -3799,7 +4203,7 @@ const getTableTagType = (table: string): string => {
   font-size: 10px;
   font-weight: bold;
   color: white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   z-index: 2000;
 }
 
@@ -3824,11 +4228,11 @@ const getTableTagType = (table: string): string => {
   :deep(.vue-flow__edge path) {
     stroke-width: 3px !important;
   }
-  
+
   :deep(.vue-flow__edge-marker) {
     transform: scale(0.8);
   }
-  
+
   :deep(.vue-flow__edge-label) {
     font-size: 10px;
     padding: 4px 8px;
@@ -3839,11 +4243,11 @@ const getTableTagType = (table: string): string => {
   :deep(.vue-flow__edge path) {
     stroke-width: 2px !important;
   }
-  
+
   :deep(.vue-flow__edge-marker) {
     transform: scale(0.6);
   }
-  
+
   :deep(.vue-flow__edge-label) {
     display: none; /* 小屏幕隐藏标签 */
   }
@@ -3875,27 +4279,27 @@ const getTableTagType = (table: string): string => {
 }
 
 :deep(.vue-flow__edge[data-protocol="udp"]) {
-  stroke-dasharray: 8,4;
+  stroke-dasharray: 8, 4;
 }
 
 :deep(.vue-flow__edge[data-protocol="icmp"]) {
-  stroke-dasharray: 2,2;
+  stroke-dasharray: 2, 2;
 }
 
 /* 带宽指示样式 */
 :deep(.vue-flow__edge[data-bandwidth="very-high"] path) {
   stroke-width: 8px;
-  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
 }
 
 :deep(.vue-flow__edge[data-bandwidth="high"] path) {
   stroke-width: 6px;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
 }
 
 :deep(.vue-flow__edge[data-bandwidth="medium"] path) {
   stroke-width: 4px;
-  filter: drop-shadow(0 1px 4px rgba(0,0,0,0.2));
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.2));
 }
 
 /* 流类型颜色增强 */
@@ -3934,11 +4338,11 @@ const getTableTagType = (table: string): string => {
 /* 数据流动动画 */
 @keyframes flow-animation {
   0% {
-    stroke-dasharray: 20,10;
+    stroke-dasharray: 20, 10;
     stroke-dashoffset: 0;
   }
   100% {
-    stroke-dasharray: 20,10;
+    stroke-dasharray: 20, 10;
     stroke-dashoffset: 30;
   }
 }
@@ -3982,7 +4386,7 @@ const getTableTagType = (table: string): string => {
 
 :deep(.vue-flow__edge:hover path) {
   stroke-width: 6px !important;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4)) drop-shadow(0 0 8px currentColor);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 8px currentColor);
   animation: jump-line 0.6s ease-in-out;
   z-index: 100;
 }
@@ -3990,7 +4394,7 @@ const getTableTagType = (table: string): string => {
 /* 交叉边的半透明处理 */
 :deep(.vue-flow__edge.crossing path) {
   opacity: 0.7;
-  stroke-dasharray: 6,3;
+  stroke-dasharray: 6, 3;
 }
 
 :deep(.vue-flow__edge.crossing:hover path) {
@@ -4001,7 +4405,7 @@ const getTableTagType = (table: string): string => {
 
 /* 智能避让样式 */
 :deep(.vue-flow__edge.avoid-crossing path) {
-  stroke-dasharray: 4,2;
+  stroke-dasharray: 4, 2;
   opacity: 0.8;
 }
 
@@ -4022,16 +4426,18 @@ const getTableTagType = (table: string): string => {
 
 /* 箭头标记增强 - 优化尺寸和可见性 */
 :deep(.vue-flow__edge-marker) {
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
   /* 确保箭头始终可见 */
   overflow: visible;
   z-index: 10;
+  stroke-width: 2px;
+  fill-opacity: 0.95;
 }
 
 /* 箭头悬停放大效果 */
 :deep(.vue-flow__edge:hover .vue-flow__edge-marker) {
   transform: scale(1.3);
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)) drop-shadow(0 0 12px currentColor);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 12px currentColor);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -4053,25 +4459,25 @@ const getTableTagType = (table: string): string => {
 
 @keyframes arrow-flow {
   0% {
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   }
   50% {
-    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)) drop-shadow(0 0 8px currentColor);
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 8px currentColor);
   }
   100% {
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   }
 }
 
 /* 不同优先级的箭头样式 - 增强版 */
 :deep(.vue-flow__edge[data-priority="critical"] .vue-flow__edge-marker) {
-  filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+  filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
   animation: critical-pulse 1s infinite;
   transform-origin: center;
 }
 
 :deep(.vue-flow__edge[data-priority="high"] .vue-flow__edge-marker) {
-  filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   animation: high-priority-glow 2s infinite;
 }
 
@@ -4133,10 +4539,10 @@ const getTableTagType = (table: string): string => {
 /* 高优先级发光动画 */
 @keyframes high-priority-glow {
   0%, 100% {
-    filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   }
   50% {
-    filter: drop-shadow(0 0 12px currentColor) drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+    filter: drop-shadow(0 0 12px currentColor) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
   }
 }
 
@@ -4207,13 +4613,13 @@ const getTableTagType = (table: string): string => {
   width: 12px;
   height: 12px;
   border: 3px solid white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
 }
 
 :deep(.vue-flow__handle:hover) {
   transform: scale(1.3);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* 状态指示器样式 */
@@ -4229,7 +4635,7 @@ const getTableTagType = (table: string): string => {
   border-radius: 50%;
   background: #67C23A;
   border: 2px solid white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   animation: pulse-status 2s infinite;
 }
 
@@ -4308,16 +4714,16 @@ const getTableTagType = (table: string): string => {
   .topology-sidebar {
     width: 260px;
   }
-  
+
   .topology-controls {
     flex-wrap: wrap;
     gap: 8px;
   }
-  
+
   .topology-header {
     padding: 15px;
   }
-  
+
   .topology-header h2 {
     font-size: 20px;
   }
@@ -4327,13 +4733,13 @@ const getTableTagType = (table: string): string => {
   .topology-sidebar {
     width: 240px;
   }
-  
+
   .topology-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
-  
+
   .topology-controls {
     width: 100%;
     justify-content: flex-start;
