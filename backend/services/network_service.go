@@ -612,27 +612,22 @@ func (s *NetworkService) generateCommunicationPathWithIsolation(tunnelInterface,
 			Interface:   dockerBridge,
 		},
 		{
-			Step: 9,
-			Description: fmt.Sprintf("数据包通过%s发送到目标 - %s", dockerBridge, func() string {
-				if connectivity.PingSuccess {
-					return "连通性正常"
-				}
-				return "连通性异常"
-			}()),
-			Table:     "output",
-			Chain:     "OUTPUT",
-			Action:    "包发送",
-			Interface: dockerBridge,
+			Step:        9,
+			Description: fmt.Sprintf("数据包通过%s发送到目标 - 跳过连通性检查", dockerBridge),
+			Table:       "output",
+			Chain:       "OUTPUT",
+			Action:      "包发送",
+			Interface:   dockerBridge,
 		},
 	}...)
 
-	// 如果连通性测试失败，添加具体的问题分析
-	if !connectivity.PingSuccess && connectivity.Error != "" {
+	// 如果有错误信息，添加具体的问题分析
+	if connectivity.Error != "" {
 		steps = append(steps, models.CommunicationStep{
 			Step:        10,
-			Description: fmt.Sprintf("连通性问题分析: %s", connectivity.Error),
+			Description: fmt.Sprintf("规则分析问题: %s", connectivity.Error),
 			Table:       "analysis",
-			Chain:       "CONNECTIVITY_ANALYSIS",
+			Chain:       "RULE_ANALYSIS",
 			Action:      "问题定位",
 		})
 	}
@@ -721,9 +716,6 @@ func (s *NetworkService) getInterfaceIPs(interfaceName string) ([]string, error)
 type ConnectivityResult struct {
 	TunnelToBridge bool
 	BridgeToTunnel bool
-	RouteExists    bool
-	PingSuccess    bool
-	HpingResults   []HpingTestResult
 	Error          string
 }
 
@@ -737,34 +729,8 @@ type IsolationAnalysisResult struct {
 }
 
 // hping3测试配置
-type HpingConfig struct {
-	Protocol    string // tcp, udp, icmp
-	TargetPort  int    // 目标端口
-	Count       int    // 发包数量
-	Interval    int    // 发包间隔(毫秒)
-	PayloadSize int    // payload大小
-	TTL         int    // TTL值
-	Timeout     int    // 超时时间(秒)
-	Interface   string // 指定接口
-}
 
 // hping3测试结果
-type HpingTestResult struct {
-	Protocol    string  `json:"protocol"`
-	TargetIP    string  `json:"target_ip"`
-	TargetPort  int     `json:"target_port"`
-	PacketsSent int     `json:"packets_sent"`
-	PacketsRecv int     `json:"packets_recv"`
-	PacketLoss  float64 `json:"packet_loss"`
-	MinRTT      float64 `json:"min_rtt"`
-	MaxRTT      float64 `json:"max_rtt"`
-	AvgRTT      float64 `json:"avg_rtt"`
-	Bandwidth   float64 `json:"bandwidth_mbps"`
-	Success     bool    `json:"success"`
-	Error       string  `json:"error"`
-	RawOutput   string  `json:"raw_output"`
-	Duration    string  `json:"duration"`
-}
 
 // 规则匹配结果
 type ForwardRuleMatch struct {
@@ -809,9 +775,7 @@ func (s *NetworkService) testConnectivity(tunnelInterface, dockerBridge string, 
 	inputJSON, _ := json.Marshal(inputParams)
 	log.Printf("[DEBUG] testConnectivity: Method called with parameters: %s", string(inputJSON))
 
-	result := ConnectivityResult{
-		HpingResults: make([]HpingTestResult, 0),
-	}
+	result := ConnectivityResult{}
 
 	// 检查输入参数有效性
 	if tunnelInterface == "" || dockerBridge == "" {
@@ -832,139 +796,11 @@ func (s *NetworkService) testConnectivity(tunnelInterface, dockerBridge string, 
 		log.Printf("[DEBUG] testConnectivity: Warning - Not running as root (UID: %d), some network tests may fail", os.Geteuid())
 	}
 
-	// 检查hping3是否安装
-	hpingAvailable := s.checkHpingAvailability()
-	if !hpingAvailable {
-		log.Printf("[DEBUG] testConnectivity: hping3 not available, falling back to basic ping test")
-		result = s.fallbackToPingTest(tunnelInterface, dockerBridge, tunnelIPs, bridgeIPs, result)
-	} else {
-		log.Printf("[DEBUG] testConnectivity: hping3 available, proceeding with advanced testing")
-	}
+	// 跳过路由检查和ping检查步骤，直接进行iptables规则检查
+	log.Printf("[DEBUG] testConnectivity: Skipping route and ping checks, proceeding directly to iptables rule analysis")
 
-	// IP地址检查和路由测试
-	if len(tunnelIPs) > 0 && len(bridgeIPs) > 0 {
-		tunnelIP := tunnelIPs[0]
-		bridgeIP := bridgeIPs[0]
-
-		log.Printf("[DEBUG] testConnectivity: Starting connectivity tests between %s (%s) and %s (%s)",
-			tunnelInterface, tunnelIP, dockerBridge, bridgeIP)
-
-		// 1. 路由检查
-		log.Printf("[DEBUG] testConnectivity: Step 1 - Checking route from %s to %s", tunnelIP, bridgeIP)
-		routeCmd := exec.Command("ip", "route", "get", bridgeIP, "from", tunnelIP)
-		routeOutput, routeErr := routeCmd.CombinedOutput()
-
-		routeResult := map[string]interface{}{
-			"command":  fmt.Sprintf("ip route get %s from %s", bridgeIP, tunnelIP),
-			"success":  routeErr == nil,
-			"output":   string(routeOutput),
-			"error":    nil,
-			"duration": time.Since(startTime).String(),
-		}
-
-		if routeErr != nil {
-			routeResult["error"] = routeErr.Error()
-			log.Printf("[DEBUG] testConnectivity: Route check failed: %v, output: %s", routeErr, string(routeOutput))
-		} else {
-			log.Printf("[DEBUG] testConnectivity: Route check successful, output: %s", strings.TrimSpace(string(routeOutput)))
-		}
-
-		result.RouteExists = (routeErr == nil)
-		routeJSON, _ := json.Marshal(routeResult)
-		log.Printf("[DEBUG] testConnectivity: Route test result: %s", string(routeJSON))
-
-		// 2. 高级hping3测试（如果可用）
-		if hpingAvailable {
-			log.Printf("[DEBUG] testConnectivity: Step 2 - Advanced hping3 connectivity tests")
-
-			destinationIP := "" // 从tun0接口信息中获取的destination IP
-
-			// 获取tunnel接口的destination IP
-			if tunnelDestIP := s.getTunnelDestinationIP(tunnelInterface); tunnelDestIP != "" {
-				destinationIP = tunnelDestIP
-				log.Printf("[DEBUG] testConnectivity: Using tunnel destination IP: %s", destinationIP)
-			}
-
-			// 定义快速测试配置 - 优化为更快的测试参数
-			testConfigs := []HpingConfig{
-				// ICMP测试 - 快速版本
-				{
-					Protocol:    "icmp",
-					Count:       2,   // 减少到2个包
-					Interval:    200, // 200ms间隔，更快
-					PayloadSize: 32,  // 减小payload
-					TTL:         64,
-					Timeout:     3, // 3秒超时
-					Interface:   tunnelInterface,
-				},
-				// TCP测试 - 快速版本
-				{
-					Protocol:    "tcp",
-					TargetPort:  80,
-					Count:       1,   // 只发1个包
-					Interval:    100, // 100ms间隔
-					PayloadSize: 16,  // 更小的payload
-					TTL:         64,
-					Timeout:     2, // 2秒超时
-					Interface:   tunnelInterface,
-				},
-			}
-
-			// 执行hping3测试 - 使用快速失败机制
-			for i, config := range testConfigs {
-				log.Printf("[DEBUG] testConnectivity: Running hping3 test %d/%d - Protocol: %s",
-					i+1, len(testConfigs), config.Protocol)
-
-				hpingResult := s.runHpingTest(destinationIP, config)
-				result.HpingResults = append(result.HpingResults, hpingResult)
-
-				// 如果任何一个测试成功，标记为连通并可以提前结束
-				if hpingResult.Success {
-					result.PingSuccess = true
-					log.Printf("[DEBUG] testConnectivity: Test successful with %s protocol, skipping remaining tests for faster response", config.Protocol)
-					break // 快速成功，跳出循环
-				}
-
-				// 如果ICMP测试失败且有明确的网络错误，跳过后续测试
-				if i == 0 && !hpingResult.Success && (strings.Contains(hpingResult.Error, "Network unreachable") ||
-					strings.Contains(hpingResult.Error, "No route to host") ||
-					strings.Contains(hpingResult.Error, "timeout")) {
-					log.Printf("[DEBUG] testConnectivity: ICMP test failed with network error, skipping remaining tests: %s", hpingResult.Error)
-					break // 快速失败，跳出循环
-				}
-			}
-
-			// 汇总hping3测试结果
-			s.summarizeHpingResults(result.HpingResults)
-
-		} else {
-			// 如果hping3不可用，使用基础ping测试作为后备
-			log.Printf("[DEBUG] testConnectivity: Step 2 - Fallback ping test")
-			result = s.fallbackToPingTest(tunnelInterface, dockerBridge, tunnelIPs, bridgeIPs, result)
-		}
-
-	} else {
-		result.Error = "Unable to get IP addresses for connectivity test"
-		log.Printf("[DEBUG] testConnectivity: IP address validation failed - tunnelIPs: %v, bridgeIPs: %v", tunnelIPs, bridgeIPs)
-
-		// 尝试获取接口IP的详细诊断
-		if len(tunnelIPs) == 0 {
-			log.Printf("[DEBUG] testConnectivity: No IP addresses found for tunnel interface %s", tunnelInterface)
-			if exists, _ := s.checkInterfaceExists(tunnelInterface); !exists {
-				log.Printf("[DEBUG] testConnectivity: Tunnel interface %s does not exist", tunnelInterface)
-			}
-		}
-
-		if len(bridgeIPs) == 0 {
-			log.Printf("[DEBUG] testConnectivity: No IP addresses found for bridge interface %s", dockerBridge)
-			if exists, _ := s.checkInterfaceExists(dockerBridge); !exists {
-				log.Printf("[DEBUG] testConnectivity: Bridge interface %s does not exist", dockerBridge)
-			}
-		}
-	}
-
-	// 3. iptables规则检查 - 使用改进的规则匹配机制
-	log.Printf("[DEBUG] testConnectivity: Step 3 - Checking iptables FORWARD rules using improved matching")
+	// iptables规则检查 - 使用改进的规则匹配机制
+	log.Printf("[DEBUG] testConnectivity: Step 1 - Checking iptables FORWARD rules using improved matching")
 
 	// 获取完整的FORWARD规则列表
 	forwardRules, forwardErr := s.getForwardRulesExact(tunnelInterface, dockerBridge)
@@ -1033,14 +869,12 @@ func (s *NetworkService) testConnectivity(tunnelInterface, dockerBridge string, 
 	finalResult := map[string]interface{}{
 		"tunnelInterface": tunnelInterface,
 		"dockerBridge":    dockerBridge,
-		"routeExists":     result.RouteExists,
-		"pingSuccess":     result.PingSuccess,
 		"tunnelToBridge":  result.TunnelToBridge,
 		"bridgeToTunnel":  result.BridgeToTunnel,
-		"hpingTestsCount": len(result.HpingResults),
 		"error":           result.Error,
 		"totalDuration":   totalDuration.String(),
 		"timestamp":       time.Now().Format(time.RFC3339Nano),
+		"note":            "Route and ping checks have been disabled",
 	}
 
 	finalJSON, _ := json.Marshal(finalResult)
@@ -1306,16 +1140,11 @@ func (s *NetworkService) generateCommunicationPathWithTest(tunnelInterface, dock
 			Interface:   tunnelInterface,
 		},
 		{
-			Step: 4,
-			Description: fmt.Sprintf("路由决策 - %s", func() string {
-				if connectivity.RouteExists {
-					return "路由存在"
-				}
-				return "路由不存在或不可达"
-			}()),
-			Table:  "routing",
-			Chain:  "ROUTING_DECISION",
-			Action: "路由查找",
+			Step:        4,
+			Description: "路由决策 - 跳过路由检查",
+			Table:       "routing",
+			Chain:       "ROUTING_DECISION",
+			Action:      "路由查找",
 		},
 		{
 			Step:        5,
@@ -1353,28 +1182,23 @@ func (s *NetworkService) generateCommunicationPathWithTest(tunnelInterface, dock
 			Interface:   dockerBridge,
 		},
 		{
-			Step: 9,
-			Description: fmt.Sprintf("数据包通过%s发送到目标 - %s", dockerBridge, func() string {
-				if connectivity.PingSuccess {
-					return "连通性正常"
-				}
-				return "连通性异常"
-			}()),
-			Table:     "output",
-			Chain:     "OUTPUT",
-			Action:    "包发送",
-			Interface: dockerBridge,
+			Step:        9,
+			Description: fmt.Sprintf("数据包通过%s发送到目标 - 跳过连通性检查", dockerBridge),
+			Table:       "output",
+			Chain:       "OUTPUT",
+			Action:      "包发送",
+			Interface:   dockerBridge,
 		},
 	}
 
-	// 如果连通性测试失败，添加错误信息
-	if !connectivity.PingSuccess && connectivity.Error != "" {
+	// 如果有错误信息，添加错误信息
+	if connectivity.Error != "" {
 		steps = append(steps, models.CommunicationStep{
 			Step:        10,
-			Description: fmt.Sprintf("连通性测试失败: %s", connectivity.Error),
+			Description: fmt.Sprintf("规则分析失败: %s", connectivity.Error),
 			Table:       "error",
-			Chain:       "CONNECTIVITY_TEST",
-			Action:      "测试失败",
+			Chain:       "RULE_ANALYSIS",
+			Action:      "分析失败",
 		})
 	}
 
@@ -1385,20 +1209,22 @@ func (s *NetworkService) generateCommunicationPathWithTest(tunnelInterface, dock
 func (s *NetworkService) generateRecommendationsWithTest(analysis *models.TunnelDockerAnalysis, connectivity ConnectivityResult) []string {
 	var recommendations []string
 
-	// 基于连通性测试结果的建议
-	if !connectivity.PingSuccess {
-		if !connectivity.TunnelToBridge {
-			recommendations = append(recommendations,
-				fmt.Sprintf("缺少%s到%s的转发规则，建议执行: iptables -I FORWARD 1 -i %s -o %s -j ACCEPT",
-					analysis.TunnelInterface, analysis.DockerBridge, analysis.TunnelInterface, analysis.DockerBridge))
-		}
+	// 基于iptables规则分析结果的建议
+	if !connectivity.TunnelToBridge {
+		recommendations = append(recommendations,
+			fmt.Sprintf("缺少%s到%s的转发规则，建议执行: iptables -I FORWARD 1 -i %s -o %s -j ACCEPT",
+				analysis.TunnelInterface, analysis.DockerBridge, analysis.TunnelInterface, analysis.DockerBridge))
+	}
 
-		if !connectivity.BridgeToTunnel {
-			recommendations = append(recommendations,
-				fmt.Sprintf("缺少%s到%s的返回路径规则，建议执行: iptables -I FORWARD 2 -i %s -o %s -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT",
-					analysis.DockerBridge, analysis.TunnelInterface, analysis.DockerBridge, analysis.TunnelInterface))
-		}
+	if !connectivity.BridgeToTunnel {
+		recommendations = append(recommendations,
+			fmt.Sprintf("缺少%s到%s的返回路径规则，建议执行: iptables -I FORWARD 2 -i %s -o %s -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT",
+				analysis.DockerBridge, analysis.TunnelInterface, analysis.DockerBridge, analysis.TunnelInterface))
+	}
 
+	if connectivity.TunnelToBridge && connectivity.BridgeToTunnel {
+		recommendations = append(recommendations, "iptables规则检查通过，转发规则配置正常")
+	} else {
 		// 检查是否有MASQUERADE规则
 		hasMasqueradeRule := false
 		for _, rule := range analysis.NATRules {
@@ -1413,8 +1239,6 @@ func (s *NetworkService) generateRecommendationsWithTest(analysis *models.Tunnel
 				fmt.Sprintf("缺少MASQUERADE规则，建议执行: iptables -t nat -A POSTROUTING -o %s -j MASQUERADE",
 					analysis.TunnelInterface))
 		}
-	} else {
-		recommendations = append(recommendations, "连通性测试成功，网络配置正常")
 	}
 
 	// 检查丢包率
@@ -1820,446 +1644,6 @@ func (s *NetworkService) getTunnelDestinationIP(tunnelInterface string) string {
 }
 
 // runHpingTest 执行hping3测试
-func (s *NetworkService) runHpingTest(targetIP string, config HpingConfig) HpingTestResult {
-	startTime := time.Now()
-
-	result := HpingTestResult{
-		Protocol:    config.Protocol,
-		TargetIP:    targetIP,
-		TargetPort:  config.TargetPort,
-		PacketsSent: config.Count,
-	}
-
-	// 构建hping3命令参数
-	args := s.buildHpingArgs(targetIP, config)
-
-	// 记录完整命令
-	fullCommand := fmt.Sprintf("hping3 %s", strings.Join(args, " "))
-	log.Printf("[DEBUG] runHpingTest: Executing hping3 command: %s", fullCommand)
-
-	// 创建带超时的上下文
-	timeout := time.Duration(config.Timeout) * time.Second
-	if timeout <= 0 {
-		timeout = 10 * time.Second // 默认10秒超时
-	}
-
-	log.Printf("[DEBUG] runHpingTest: Setting command timeout to %v", timeout)
-
-	// 执行命令with timeout
-	cmd := exec.Command("hping3", args...)
-
-	// 创建一个channel来接收命令结果
-	type cmdResult struct {
-		output []byte
-		err    error
-	}
-
-	resultChan := make(chan cmdResult, 1)
-
-	// 在goroutine中执行命令
-	go func() {
-		output, err := cmd.CombinedOutput()
-		resultChan <- cmdResult{output: output, err: err}
-	}()
-
-	// 等待命令完成或超时
-	var output []byte
-	var err error
-
-	select {
-	case res := <-resultChan:
-		output = res.output
-		err = res.err
-		log.Printf("[DEBUG] runHpingTest: Command completed within timeout")
-	case <-time.After(timeout):
-		// 超时处理
-		if cmd.Process != nil {
-			log.Printf("[DEBUG] runHpingTest: Command timeout, killing process")
-			cmd.Process.Kill()
-		}
-		err = fmt.Errorf("command timeout after %v", timeout)
-		output = []byte("Command timeout")
-	}
-
-	result.Duration = time.Since(startTime).String()
-	result.RawOutput = string(output)
-
-	if err != nil {
-		result.Error = err.Error()
-		result.Success = false
-
-		// 详细错误分析
-		if strings.Contains(string(output), "Operation not permitted") {
-			result.Error = "Permission denied: hping3 requires root privileges"
-			log.Printf("[DEBUG] runHpingTest: Permission denied - try running as root")
-		} else if strings.Contains(string(output), "Network is unreachable") {
-			result.Error = "Network unreachable: No route to target"
-			log.Printf("[DEBUG] runHpingTest: Network unreachable")
-		} else if strings.Contains(string(output), "No such device") {
-			result.Error = fmt.Sprintf("Interface %s not found", config.Interface)
-			log.Printf("[DEBUG] runHpingTest: Interface not found: %s", config.Interface)
-		} else {
-			log.Printf("[DEBUG] runHpingTest: Command failed: %v", err)
-		}
-
-		log.Printf("[DEBUG] runHpingTest: Command output: %s", string(output))
-		return result
-	}
-
-	// 解析hping3输出
-	s.parseHpingOutput(string(output), &result)
-
-	// 记录测试结果
-	resultJSON, _ := json.Marshal(result)
-	log.Printf("[DEBUG] runHpingTest: Test completed - %s", string(resultJSON))
-
-	return result
-}
-
-// buildHpingArgs 构建hping3命令参数
-func (s *NetworkService) buildHpingArgs(targetIP string, config HpingConfig) []string {
-	var args []string
-
-	// 基础参数
-	args = append(args, "-c", strconv.Itoa(config.Count))
-
-	// 协议特定参数
-	switch config.Protocol {
-	case "tcp":
-		args = append(args, "-S") // TCP SYN
-		if config.TargetPort > 0 {
-			args = append(args, "-p", strconv.Itoa(config.TargetPort))
-		}
-	case "udp":
-		args = append(args, "-2") // UDP mode
-		if config.TargetPort > 0 {
-			args = append(args, "-p", strconv.Itoa(config.TargetPort))
-		}
-	case "icmp":
-		args = append(args, "-1") // ICMP mode
-	}
-
-	// 时间间隔（微秒）
-	if config.Interval > 0 {
-		// config.Interval是毫秒，转换为微秒
-		intervalMicros := config.Interval * 1000
-		args = append(args, "-i", fmt.Sprintf("u%d", intervalMicros))
-		log.Printf("[DEBUG] buildHpingArgs: Setting interval to %dms (%d microseconds)", config.Interval, intervalMicros)
-	}
-
-	// Payload大小
-	if config.PayloadSize > 0 {
-		args = append(args, "-d", strconv.Itoa(config.PayloadSize))
-	}
-
-	// TTL值
-	if config.TTL > 0 {
-		args = append(args, "-t", strconv.Itoa(config.TTL))
-	}
-
-	// 指定接口
-	if config.Interface != "" {
-		args = append(args, "-I", config.Interface)
-	}
-
-	// 详细输出
-	args = append(args, "-V")
-
-	// 目标IP
-	args = append(args, targetIP)
-
-	log.Printf("[DEBUG] buildHpingArgs: Built command args: %v", args)
-	return args
-}
-
-// parseHpingOutput 解析hping3输出
-func (s *NetworkService) parseHpingOutput(output string, result *HpingTestResult) {
-	log.Printf("[DEBUG] parseHpingOutput: Parsing hping3 output for protocol %s", result.Protocol)
-
-	lines := strings.Split(output, "\n")
-	var rtts []float64
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		log.Printf("[TRACE] parseHpingOutput: Processing line: %s", line)
-
-		// 解析响应行，例如：
-		// "len=46 ip=192.168.252.2 ttl=64 id=0 sport=80 flags=SA seq=0 win=5840 rtt=7.9 ms"
-		if strings.Contains(line, "rtt=") {
-			result.PacketsRecv++
-
-			// 提取RTT值
-			rttRegex := regexp.MustCompile(`rtt=([0-9.]+)\s*ms`)
-			if matches := rttRegex.FindStringSubmatch(line); len(matches) > 1 {
-				if rtt, err := strconv.ParseFloat(matches[1], 64); err == nil {
-					rtts = append(rtts, rtt)
-					log.Printf("[TRACE] parseHpingOutput: Extracted RTT: %.2f ms", rtt)
-				}
-			}
-		}
-
-		// 解析统计信息行，例如：
-		// "--- 192.168.252.2 hping statistic ---"
-		// "3 packets transmitted, 3 packets received, 0% packet loss"
-		if strings.Contains(line, "packets transmitted") {
-			// 解析丢包统计
-			parts := strings.Fields(line)
-			for i, part := range parts {
-				if part == "packets" && i > 0 {
-					if sent, err := strconv.Atoi(parts[i-1]); err == nil {
-						result.PacketsSent = sent
-					}
-				}
-				if part == "received," && i > 0 {
-					if recv, err := strconv.Atoi(parts[i-1]); err == nil {
-						result.PacketsRecv = recv
-					}
-				}
-				if strings.HasSuffix(part, "%") && strings.Contains(part, "packet") {
-					// 提取丢包率
-					lossStr := strings.TrimSuffix(parts[i-1], "%")
-					if loss, err := strconv.ParseFloat(lossStr, 64); err == nil {
-						result.PacketLoss = loss
-					}
-				}
-			}
-		}
-
-		// 解析RTT统计行，例如：
-		// "round-trip min/avg/max = 7.9/8.2/8.6 ms"
-		if strings.Contains(line, "round-trip") && strings.Contains(line, "min/avg/max") {
-			rttStatsRegex := regexp.MustCompile(`min/avg/max = ([0-9.]+)/([0-9.]+)/([0-9.]+)`)
-			if matches := rttStatsRegex.FindStringSubmatch(line); len(matches) > 3 {
-				if min, err := strconv.ParseFloat(matches[1], 64); err == nil {
-					result.MinRTT = min
-				}
-				if avg, err := strconv.ParseFloat(matches[2], 64); err == nil {
-					result.AvgRTT = avg
-				}
-				if max, err := strconv.ParseFloat(matches[3], 64); err == nil {
-					result.MaxRTT = max
-				}
-				log.Printf("[DEBUG] parseHpingOutput: RTT stats - Min:%.2f Avg:%.2f Max:%.2f ms",
-					result.MinRTT, result.AvgRTT, result.MaxRTT)
-			}
-		}
-	}
-
-	// 如果没有从统计行获取到RTT信息，从单个响应计算
-	if result.MinRTT == 0 && len(rtts) > 0 {
-		result.MinRTT = rtts[0]
-		result.MaxRTT = rtts[0]
-		var sum float64
-
-		for _, rtt := range rtts {
-			if rtt < result.MinRTT {
-				result.MinRTT = rtt
-			}
-			if rtt > result.MaxRTT {
-				result.MaxRTT = rtt
-			}
-			sum += rtt
-		}
-
-		result.AvgRTT = sum / float64(len(rtts))
-		log.Printf("[DEBUG] parseHpingOutput: Calculated RTT stats from responses - Min:%.2f Avg:%.2f Max:%.2f ms",
-			result.MinRTT, result.AvgRTT, result.MaxRTT)
-	}
-
-	// 计算丢包率（如果没有从统计行获取到）
-	if result.PacketLoss == 0 && result.PacketsSent > 0 {
-		result.PacketLoss = float64(result.PacketsSent-result.PacketsRecv) / float64(result.PacketsSent) * 100
-	}
-
-	// 估算带宽（简单估算）
-	if result.AvgRTT > 0 && result.PacketsRecv > 0 {
-		// 基于RTT和包大小的简单带宽估算（Mbps）
-		payloadBytes := 64.0 // 默认payload大小
-		result.Bandwidth = (payloadBytes * 8 * float64(result.PacketsRecv)) / (result.AvgRTT / 1000) / 1000000
-	}
-
-	// 判断测试是否成功
-	result.Success = (result.PacketsRecv > 0 && result.PacketLoss < 100)
-
-	log.Printf("[DEBUG] parseHpingOutput: Final result - Success:%v PacketLoss:%.1f%% AvgRTT:%.2fms Bandwidth:%.2fMbps",
-		result.Success, result.PacketLoss, result.AvgRTT, result.Bandwidth)
-}
-
-// summarizeHpingResults 汇总hping3测试结果
-func (s *NetworkService) summarizeHpingResults(results []HpingTestResult) {
-	if len(results) == 0 {
-		log.Printf("[DEBUG] summarizeHpingResults: No hping3 results to summarize")
-		return
-	}
-
-	log.Printf("[DEBUG] summarizeHpingResults: Summarizing %d hping3 test results", len(results))
-
-	successCount := 0
-	totalPacketLoss := 0.0
-	totalAvgRTT := 0.0
-	totalBandwidth := 0.0
-
-	for i, result := range results {
-		log.Printf("[DEBUG] summarizeHpingResults: Test %d - Protocol:%s Success:%v PacketLoss:%.1f%% RTT:%.2fms",
-			i+1, result.Protocol, result.Success, result.PacketLoss, result.AvgRTT)
-
-		if result.Success {
-			successCount++
-		}
-
-		totalPacketLoss += result.PacketLoss
-		totalAvgRTT += result.AvgRTT
-		totalBandwidth += result.Bandwidth
-	}
-
-	avgPacketLoss := totalPacketLoss / float64(len(results))
-	avgRTT := totalAvgRTT / float64(len(results))
-	avgBandwidth := totalBandwidth / float64(len(results))
-
-	summary := map[string]interface{}{
-		"total_tests":      len(results),
-		"successful_tests": successCount,
-		"success_rate":     float64(successCount) / float64(len(results)) * 100,
-		"avg_packet_loss":  avgPacketLoss,
-		"avg_rtt":          avgRTT,
-		"avg_bandwidth":    avgBandwidth,
-	}
-
-	summaryJSON, _ := json.Marshal(summary)
-	log.Printf("[DEBUG] summarizeHpingResults: Test summary: %s", string(summaryJSON))
-}
-
-// fallbackToPingTest 后备的基础ping测试
-func (s *NetworkService) fallbackToPingTest(tunnelInterface, dockerBridge string, tunnelIPs, bridgeIPs []string, result ConnectivityResult) ConnectivityResult {
-	if len(tunnelIPs) == 0 || len(bridgeIPs) == 0 {
-		return result
-	}
-
-	tunnelIP := tunnelIPs[0]
-	bridgeIP := bridgeIPs[0]
-
-	log.Printf("[DEBUG] fallbackToPingTest: Running basic ping test from %s to %s", tunnelInterface, bridgeIP)
-
-	// 构造ping命令（适配不同操作系统）
-	var pingCmd *exec.Cmd
-	var pingArgs []string
-
-	switch runtime.GOOS {
-	case "linux":
-		pingArgs = []string{"-c", "3", "-W", "2", "-I", tunnelInterface, bridgeIP}
-	case "darwin": // macOS
-		pingArgs = []string{"-c", "3", "-t", "2", "-S", tunnelIP, bridgeIP}
-	case "windows":
-		pingArgs = []string{"-n", "3", "-w", "2000", bridgeIP}
-	default:
-		pingArgs = []string{"-c", "3", "-W", "2", bridgeIP}
-	}
-
-	pingCmd = exec.Command("ping", pingArgs...)
-	log.Printf("[DEBUG] fallbackToPingTest: Executing ping command: ping %s", strings.Join(pingArgs, " "))
-
-	pingStartTime := time.Now()
-	pingOutput, pingErr := pingCmd.CombinedOutput()
-	pingDuration := time.Since(pingStartTime)
-
-	// 创建一个基础的HpingTestResult来保持一致性
-	pingResult := HpingTestResult{
-		Protocol:    "icmp",
-		TargetIP:    bridgeIP,
-		PacketsSent: 3,
-		Success:     pingErr == nil,
-		Duration:    pingDuration.String(),
-		RawOutput:   string(pingOutput),
-	}
-
-	if pingErr != nil {
-		pingResult.Error = pingErr.Error()
-		pingResult.PacketLoss = 100.0
-
-		// 详细的ping失败诊断
-		if strings.Contains(string(pingOutput), "Network is unreachable") {
-			result.Error = fmt.Sprintf("Network unreachable: No route from %s (%s) to %s", tunnelInterface, tunnelIP, bridgeIP)
-			log.Printf("[DEBUG] fallbackToPingTest: Ping failed - Network unreachable")
-		} else if strings.Contains(string(pingOutput), "Operation not permitted") {
-			result.Error = fmt.Sprintf("Permission denied: Insufficient privileges to ping from %s", tunnelInterface)
-			log.Printf("[DEBUG] fallbackToPingTest: Ping failed - Permission denied")
-		} else {
-			result.Error = fmt.Sprintf("Ping from %s (%s) to %s failed: %v", tunnelInterface, tunnelIP, bridgeIP, pingErr)
-			log.Printf("[DEBUG] fallbackToPingTest: Ping failed with error: %v", pingErr)
-		}
-	} else {
-		// 解析ping输出获取统计信息
-		s.parsePingOutput(string(pingOutput), &pingResult)
-		result.PingSuccess = true
-		log.Printf("[DEBUG] fallbackToPingTest: Ping successful in %v", pingDuration)
-	}
-
-	result.HpingResults = append(result.HpingResults, pingResult)
-
-	pingJSON, _ := json.Marshal(pingResult)
-	log.Printf("[DEBUG] fallbackToPingTest: Ping test result: %s", string(pingJSON))
-
-	return result
-}
-
-// parsePingOutput 解析ping输出
-func (s *NetworkService) parsePingOutput(output string, result *HpingTestResult) {
-	lines := strings.Split(output, "\n")
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		// 解析统计行，例如：
-		// "3 packets transmitted, 3 received, 0% packet loss, time 2003ms"
-		if strings.Contains(line, "packets transmitted") {
-			parts := strings.Fields(line)
-			for i, part := range parts {
-				if part == "transmitted," && i > 0 {
-					if sent, err := strconv.Atoi(parts[i-1]); err == nil {
-						result.PacketsSent = sent
-					}
-				}
-				if part == "received," && i > 0 {
-					if recv, err := strconv.Atoi(parts[i-1]); err == nil {
-						result.PacketsRecv = recv
-					}
-				}
-				if strings.Contains(part, "%") && strings.Contains(part, "packet") {
-					lossStr := strings.TrimSuffix(part, "%")
-					if loss, err := strconv.ParseFloat(lossStr, 64); err == nil {
-						result.PacketLoss = loss
-					}
-				}
-			}
-		}
-
-		// 解析RTT统计行，例如：
-		// "rtt min/avg/max/mdev = 0.045/0.057/0.074/0.012 ms"
-		if strings.Contains(line, "rtt min/avg/max") {
-			rttRegex := regexp.MustCompile(`min/avg/max/mdev = ([0-9.]+)/([0-9.]+)/([0-9.]+)/([0-9.]+)`)
-			if matches := rttRegex.FindStringSubmatch(line); len(matches) > 3 {
-				if min, err := strconv.ParseFloat(matches[1], 64); err == nil {
-					result.MinRTT = min
-				}
-				if avg, err := strconv.ParseFloat(matches[2], 64); err == nil {
-					result.AvgRTT = avg
-				}
-				if max, err := strconv.ParseFloat(matches[3], 64); err == nil {
-					result.MaxRTT = max
-				}
-			}
-		}
-	}
-
-	// 计算丢包率（如果没有获取到）
-	if result.PacketLoss == 0 && result.PacketsSent > 0 {
-		result.PacketLoss = float64(result.PacketsSent-result.PacketsRecv) / float64(result.PacketsSent) * 100
-	}
-}
 
 // GetTunnelInterfaceInfo 获取隧道接口详细信息
 func (s *NetworkService) GetTunnelInterfaceInfo(interfaceName string) (*models.TunnelInterfaceInfo, error) {

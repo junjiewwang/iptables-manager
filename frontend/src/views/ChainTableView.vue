@@ -39,6 +39,14 @@
               <el-icon><Refresh /></el-icon>
               刷新数据
             </el-button>
+            <el-button v-if="viewMode === 'chain'" @click="showTopoSettingsDialog = true" type="success">
+              <el-icon><Setting /></el-icon>
+              拓扑设置
+            </el-button>
+            <el-button v-if="viewMode === 'chain'" @click="standardizeConnectionPaths" type="info">
+              <el-icon><Position /></el-icon>
+              标准化路径
+            </el-button>
           </div>
         </div>
 
@@ -165,23 +173,37 @@
           <VueFlow
             v-model="flowElements"
             class="dataflow-diagram"
+            :class="{ 'dark': topoSettings.darkMode }"
             :default-viewport="{ zoom: 0.8 }"
             :min-zoom="0.5"
             :max-zoom="2"
-            :snap-to-grid="true"
+            :snap-to-grid="topoSettings.snapToGrid"
             :snap-grid="[20, 20]"
+            :node-draggable="topoSettings.enableDrag"
+            :auto-connect="false"
+            :connection-mode="ConnectionMode.Strict"
+            :fit-view-on-init="true"
+            :elevate-edges-on-select="true"
+            :default-edge-options="{ animated: topoSettings.animateEdges }"
             @node-click="onNodeClick"
             @edge-click="onEdgeClick"
           >
             <!-- 背景 -->
-            <Background pattern-color="#e2e8f0" :gap="20" />
+            <Background 
+              :pattern-color="topoSettings.darkMode ? '#2d3748' : '#e2e8f0'" 
+              :gap="20" 
+              :variant="topoSettings.darkMode ? 'dots' : 'lines'"
+            />
             
             <!-- 控制面板 -->
             <Controls />
             
+            <!-- 小地图 -->
+            <MiniMap v-if="topoSettings.showMinimap" height="100" width="150" />
+            
             <!-- 自定义节点模板 -->
             <template #node-chain="{ data }">
-              <div class="chain-node" :class="data.chainType">
+              <div class="chain-node" :class="[data.chainType, topoSettings.nodeStyle]">
                 <div class="chain-header">
                   <h3 class="chain-title">{{ data.label }}</h3>
                 </div>
@@ -196,38 +218,54 @@
                     {{ table }}
                   </span>
                 </div>
-                <div class="chain-stats">{{ data.ruleCount }} 规则</div>
+                <div class="chain-stats">
+                  <span>{{ data.ruleCount }} 规则</span>
+                </div>
               </div>
             </template>
             
             <template #node-decision="{ data }">
-              <div class="decision-node">
+              <div class="decision-node" :class="topoSettings.nodeStyle">
                 <div class="decision-content">
-                  {{ data.label }}
+                  <div class="decision-icon">
+                    <el-icon class="router-icon"><Connection /></el-icon>
+                  </div>
+                  <div class="decision-label">{{ data.label }}</div>
                 </div>
               </div>
             </template>
             
             <template #node-endpoint="{ data }">
-              <div class="endpoint-node" :class="data.type">
+              <div class="endpoint-node" :class="[data.type, topoSettings.nodeStyle]">
                 <div class="endpoint-content">
-                  {{ data.label }}
+                  <div class="endpoint-icon">
+                    <el-icon v-if="data.type === 'entry'" class="server-icon"><Monitor /></el-icon>
+                    <el-icon v-else-if="data.type === 'exit'" class="server-icon"><House /></el-icon>
+                    <el-icon v-else><Connection /></el-icon>
+                  </div>
+                  <div class="endpoint-label">{{ data.label }}</div>
                 </div>
               </div>
             </template>
             
             <template #node-process="{ data }">
-              <div class="process-node">
+              <div class="process-node" :class="topoSettings.nodeStyle">
                 <div class="process-content">
-                  {{ data.label }}
+                  <div class="process-icon">
+                    <el-icon class="gear-icon"><Setting /></el-icon>
+                  </div>
+                  <div class="process-label">{{ data.label }}</div>
                 </div>
               </div>
             </template>
 
             <template #node-protocol="{ data }">
-              <div class="protocol-node">
+              <div class="protocol-node" :class="topoSettings.nodeStyle">
                 <div class="protocol-content">
-                  {{ data.label }}
+                  <div class="protocol-icon">
+                    <el-icon><Grid /></el-icon>
+                  </div>
+                  <div class="protocol-label">{{ data.label }}</div>
                 </div>
               </div>
             </template>
@@ -967,6 +1005,76 @@
         </div>
       </template>
     </el-dialog>
+    
+    <!-- 拓扑设置对话框 -->
+    <el-dialog
+      v-model="showTopoSettingsDialog"
+      title="拓扑图设置"
+      width="500px"
+      destroy-on-close
+    >
+      <el-form :model="topoSettings" label-position="top">
+        <el-form-item label="节点样式">
+          <el-radio-group v-model="topoSettings.nodeStyle">
+            <el-radio-button label="flat">扁平</el-radio-button>
+            <el-radio-button label="gradient">渐变</el-radio-button>
+            <el-radio-button label="glass">玻璃</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        
+        <el-divider>交互设置</el-divider>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="启用拖拽">
+              <el-switch v-model="topoSettings.enableDrag" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="吸附网格">
+              <el-switch v-model="topoSettings.snapToGrid" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="显示小地图">
+              <el-switch v-model="topoSettings.showMinimap" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="边缘动画">
+              <el-switch v-model="topoSettings.animateEdges" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="暗色模式">
+              <el-switch v-model="topoSettings.darkMode" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="显示标签">
+              <el-switch v-model="topoSettings.showLabels" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-form-item label="节点间距">
+          <el-slider v-model="topoSettings.nodeDistance" :min="50" :max="200" :step="10" show-stops />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="resetTopoSettings">重置默认</el-button>
+          <el-button type="primary" @click="applyTopoSettings">应用设置</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -975,13 +1083,14 @@ import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { 
   Refresh, Plus, Edit, Delete, Search, Filter, Share, Grid, Connection, 
-  Location, ArrowRight, Document, Download, Upload, Check, Box, List, Monitor, View
+  Location, ArrowRight, Document, Download, Upload, Check, Box, List, Monitor, View, Setting
 } from '@element-plus/icons-vue'
-import { VueFlow } from '@vue-flow/core'
+import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
-import { MarkerType } from '@vue-flow/core'
-import type { Node, Edge, Elements } from '@vue-flow/core'
+import { MiniMap } from '@vue-flow/minimap'
+import { MarkerType, ConnectionMode, Position } from '@vue-flow/core'
+import type { Node, Edge, Elements, NodeTypes } from '@vue-flow/core'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import { apiService, networkAPI, tablesAPI } from '@/api'
@@ -993,9 +1102,22 @@ const viewMode = ref('chain')
 const selectedChain = ref('')
 const showChainDialog = ref(false)
 const showAddRuleDialog = ref(false)
+const showTopoSettingsDialog = ref(false)
 const detailTitle = ref('')
 const detailRules = ref([])
 const groupByChain = ref(true)
+
+// 拓扑图设置
+const topoSettings = reactive({
+  nodeStyle: 'gradient',
+  enableDrag: true,
+  snapToGrid: true,
+  showMinimap: true,
+  animateEdges: true,
+  darkMode: false,
+  showLabels: true,
+  nodeDistance: 100
+})
 
 // 筛选相关数据
 const activeFilterPanels = ref(['filters'])
@@ -1431,6 +1553,59 @@ const filteredDetailRules = computed(() => {
   return filtered
 })
 
+// 计算节点边缘位置
+const getNodeEdgePosition = (node: any, targetNode: any, isSource: boolean = true) => {
+  if (!node?.position || !targetNode?.position) {
+    return { x: 0, y: 0 }
+  }
+
+  // 节点尺寸（根据实际节点大小调整）
+  const nodeWidth = 120
+  const nodeHeight = 80
+
+  // 节点中心位置
+  const centerX = node.position.x + nodeWidth / 2
+  const centerY = node.position.y + nodeHeight / 2
+
+  // 目标节点中心位置
+  const targetCenterX = targetNode.position.x + nodeWidth / 2
+  const targetCenterY = targetNode.position.y + nodeHeight / 2
+
+  // 计算方向向量
+  const dx = targetCenterX - centerX
+  const dy = targetCenterY - centerY
+  const distance = Math.sqrt(dx * dx + dy * dy)
+
+  if (distance === 0) {
+    return { x: centerX, y: centerY }
+  }
+
+  // 标准化方向向量
+  const unitX = dx / distance
+  const unitY = dy / distance
+
+  // 计算边缘交点
+  let edgeX, edgeY
+
+  // 计算与节点边界的交点
+  const absUnitX = Math.abs(unitX)
+  const absUnitY = Math.abs(unitY)
+
+  if (absUnitX > absUnitY) {
+    // 主要是水平方向，与左右边界相交
+    const halfWidth = nodeWidth / 2
+    edgeX = centerX + (unitX > 0 ? halfWidth : -halfWidth)
+    edgeY = centerY + (unitY * halfWidth / absUnitX)
+  } else {
+    // 主要是垂直方向，与上下边界相交
+    const halfHeight = nodeHeight / 2
+    edgeX = centerX + (unitX * halfHeight / absUnitY)
+    edgeY = centerY + (unitY > 0 ? halfHeight : -halfHeight)
+  }
+
+  return { x: edgeX, y: edgeY }
+}
+
 // 初始化 Vue Flow 节点和边
 const initializeFlowElements = () => {
   console.log('开始初始化流程图元素...')
@@ -1438,7 +1613,8 @@ const initializeFlowElements = () => {
     chainTableData: chainTableData.value,
     hasChains: chainTableData.value?.chains?.length > 0,
     chainsLength: chainTableData.value?.chains?.length || 0,
-    activeFilters: activeFiltersCount.value
+    activeFilters: activeFiltersCount.value,
+    topoSettings: topoSettings
   })
   
   // 确保数据已加载
@@ -1447,27 +1623,72 @@ const initializeFlowElements = () => {
     console.log('chainTableData.value:', chainTableData.value)
     return
   }
+  
+  // 获取Vue Flow实例
+  const { fitView } = useVueFlow()
+  
+  // 根据布局模式确定节点位置
+  let nodePositions: Record<string, {x: number, y: number}> = {}
+  
+  // 根据图片中的布局设置节点位置
+  nodePositions = {
+    'input': { x: 620, y: 150 },
+    'local-process': { x: 880, y: 150 },
+    'output': { x: 1140, y: 150 },
+    'external-entry': { x: 140, y: 310 },
+    'prerouting': { x: 400, y: 310 },
+    'routing-decision': { x: 620, y: 310 },
+    'forward': { x: 880, y: 310 },
+    'postrouting': { x: 1140, y: 310 },
+    'external-exit': { x: 1400, y: 310 }
+  }
 
   const nodes: Node[] = [
-    // 上层协议栈
+    // INPUT 链
     {
-      id: 'protocol-stack',
-      type: 'endpoint',
-      position: { x: 400, y: 50 },
-      data: { label: '上层协议栈', type: 'protocol' }
+      id: 'input',
+      type: 'chain',
+      position: nodePositions['input'],
+      data: {
+        label: 'INPUT',
+        chainName: 'INPUT',
+        chainType: 'input',
+        tables: ['mangle', 'filter', 'nat'],
+        ruleCount: getFilteredChainRuleCount('INPUT')
+      }
     },
-    // 数据包入口
+    // 本地处理
     {
-      id: 'data-entry',
+      id: 'local-process',
+      type: 'process',
+      position: nodePositions['local-process'],
+      data: { label: '本地处理' }
+    },
+    // OUTPUT 链
+    {
+      id: 'output',
+      type: 'chain',
+      position: nodePositions['output'],
+      data: {
+        label: 'OUTPUT',
+        chainName: 'OUTPUT',
+        chainType: 'output',
+        tables: ['raw', 'mangle', 'nat', 'filter'],
+        ruleCount: getFilteredChainRuleCount('OUTPUT')
+      }
+    },
+    // 外部网络入口
+    {
+      id: 'external-entry',
       type: 'endpoint',
-      position: { x: 400, y: 150 },
-      data: { label: '数据包入口', type: 'entry' }
+      position: nodePositions['external-entry'],
+      data: { label: '外部网络', type: 'entry' }
     },
     // PREROUTING 链
     {
       id: 'prerouting',
       type: 'chain',
-      position: { x: 350, y: 250 },
+      position: nodePositions['prerouting'],
       data: {
         label: 'PREROUTING',
         chainName: 'PREROUTING',
@@ -1480,47 +1701,14 @@ const initializeFlowElements = () => {
     {
       id: 'routing-decision',
       type: 'decision',
-      position: { x: 400, y: 350 },
+      position: nodePositions['routing-decision'],
       data: { label: '路由决策' }
-    },
-    // INPUT 链
-    {
-      id: 'input',
-      type: 'chain',
-      position: { x: 200, y: 450 },
-      data: {
-        label: 'INPUT',
-        chainName: 'INPUT',
-        chainType: 'input',
-        tables: ['mangle', 'nat', 'filter'],
-        ruleCount: getFilteredChainRuleCount('INPUT')
-      }
-    },
-    // 本地进程
-    {
-      id: 'local-process',
-      type: 'endpoint',
-      position: { x: 200, y: 550 },
-      data: { label: '本地进程', type: 'process' }
-    },
-    // OUTPUT 链
-    {
-      id: 'output',
-      type: 'chain',
-      position: { x: 200, y: 650 },
-      data: {
-        label: 'OUTPUT',
-        chainName: 'OUTPUT',
-        chainType: 'output',
-        tables: ['raw', 'mangle', 'nat', 'filter'],
-        ruleCount: getFilteredChainRuleCount('OUTPUT')
-      }
     },
     // FORWARD 链
     {
       id: 'forward',
       type: 'chain',
-      position: { x: 600, y: 450 },
+      position: nodePositions['forward'],
       data: {
         label: 'FORWARD',
         chainName: 'FORWARD',
@@ -1529,18 +1717,11 @@ const initializeFlowElements = () => {
         ruleCount: getFilteredChainRuleCount('FORWARD')
       }
     },
-    // 输出路由决策
-    {
-      id: 'output-routing',
-      type: 'decision',
-      position: { x: 600, y: 550 },
-      data: { label: '输出路由决策\n根据路由表查询判断' }
-    },
     // POSTROUTING 链
     {
       id: 'postrouting',
       type: 'chain',
-      position: { x: 400, y: 750 },
+      position: nodePositions['postrouting'],
       data: {
         label: 'POSTROUTING',
         chainName: 'POSTROUTING',
@@ -1549,36 +1730,113 @@ const initializeFlowElements = () => {
         ruleCount: getFilteredChainRuleCount('POSTROUTING')
       }
     },
-    // 数据包出口
+    // 外部网络出口
     {
-      id: 'data-exit',
+      id: 'external-exit',
       type: 'endpoint',
-      position: { x: 400, y: 850 },
-      data: { label: '数据包出口', type: 'exit' }
+      position: nodePositions['external-exit'],
+      data: { label: '内部网络', type: 'exit' }
     }
   ]
 
+  // 创建优化的边连接
+  const createOptimizedEdge = (id: string, source: string, target: string, options: any = {}) => {
+    // 查找源节点和目标节点
+    const sourceNode = nodes.find(n => n.id === source)
+    const targetNode = nodes.find(n => n.id === target)
+    
+    if (!sourceNode || !targetNode) {
+      return null
+    }
+    
+    // 计算边缘连接点
+    const sourceEdge = getNodeEdgePosition(sourceNode, targetNode, true)
+    const targetEdge = getNodeEdgePosition(targetNode, sourceNode, false)
+    
+    // 默认边样式
+    const defaultStyle = { 
+      stroke: '#4A90E2', 
+      strokeWidth: 2
+    }
+    
+    // 默认标记样式
+    const defaultMarker = { 
+      type: MarkerType.ArrowClosed, 
+      color: '#4A90E2',
+      width: 20,
+      height: 20
+    }
+    
+    // 合并选项
+    const style = { ...defaultStyle, ...options.style }
+    const markerEnd = { ...defaultMarker, ...options.markerEnd }
+    
+    // 创建边
+    return {
+      id,
+      source,
+      target,
+      type: 'straight',
+      style,
+      markerEnd,
+      label: options.label || '',
+      labelStyle: options.labelStyle || { fill: '#2d3748', fontWeight: 'bold' },
+      labelBgStyle: options.labelBgStyle || { fill: 'rgba(255, 255, 255, 0.8)', fillOpacity: 0.8 },
+      animated: topoSettings.animateEdges,
+      zIndex: options.zIndex || 1,
+      // 使用边缘连接点
+      sourceX: sourceEdge.x,
+      sourceY: sourceEdge.y,
+      targetX: targetEdge.x,
+      targetY: targetEdge.y
+    }
+  }
+
   const edges: Edge[] = [
-    // 主流程
-    { id: 'e1', source: 'protocol-stack', target: 'data-entry', type: 'smoothstep', style: { stroke: '#4A90E2', strokeWidth: 3 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4A90E2' } },
-    { id: 'e2', source: 'data-entry', target: 'prerouting', type: 'smoothstep', style: { stroke: '#4A90E2', strokeWidth: 3 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4A90E2' } },
-    { id: 'e3', source: 'prerouting', target: 'routing-decision', type: 'smoothstep', style: { stroke: '#4A90E2', strokeWidth: 3 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4A90E2' } },
+    // 入站数据包流向
+    createOptimizedEdge('e1', 'external-entry', 'prerouting', {
+      style: { stroke: '#4A90E2', strokeWidth: 2, strokeDasharray: '5,5' },
+      label: topoSettings.showLabels ? '入站数据包' : '',
+      zIndex: 1
+    }),
+    createOptimizedEdge('e2', 'prerouting', 'routing-decision', {
+      zIndex: 1
+    }),
     
-    
-    // 本机设备路径
-    { id: 'e4', source: 'routing-decision', target: 'input', type: 'smoothstep', style: { stroke: '#7ED321', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#7ED321' }, label: '本机设备' },
-    { id: 'e5', source: 'input', target: 'local-process', type: 'smoothstep', style: { stroke: '#7ED321', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#7ED321' } },
-    { id: 'e6', source: 'local-process', target: 'output', type: 'smoothstep', style: { stroke: '#7ED321', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#7ED321' } },
-    { id: 'e7', source: 'output', target: 'postrouting', type: 'smoothstep', style: { stroke: '#7ED321', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#7ED321' } },
+    // 本地处理路径
+    createOptimizedEdge('e3', 'routing-decision', 'input', {
+      label: topoSettings.showLabels ? '本地处理' : '',
+      zIndex: 2
+    }),
+    createOptimizedEdge('e4', 'input', 'local-process', {
+      zIndex: 2
+    }),
+    createOptimizedEdge('e5', 'local-process', 'output', {
+      zIndex: 2
+    }),
+    createOptimizedEdge('e6', 'output', 'postrouting', {
+      label: topoSettings.showLabels ? '出站数据包' : '',
+      zIndex: 2
+    }),
     
     // 转发路径
-    { id: 'e8', source: 'routing-decision', target: 'forward', type: 'smoothstep', style: { stroke: '#F5A623', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#F5A623' }, label: '非本机设备\\nip_forward=1' },
-    { id: 'e9', source: 'forward', target: 'output-routing', type: 'smoothstep', style: { stroke: '#F5A623', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#F5A623' } },
-    { id: 'e10', source: 'output-routing', target: 'postrouting', type: 'smoothstep', style: { stroke: '#F5A623', strokeWidth: 2.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#F5A623' } },
+    createOptimizedEdge('e7', 'routing-decision', 'forward', {
+      style: { stroke: '#4A90E2', strokeWidth: 2, strokeDasharray: '5,5' },
+      label: topoSettings.showLabels ? '转发处理' : '',
+      zIndex: 2
+    }),
+    createOptimizedEdge('e8', 'forward', 'postrouting', {
+      style: { stroke: '#4A90E2', strokeWidth: 2, strokeDasharray: '5,5' },
+      zIndex: 2
+    }),
     
     // 最终出口
-    { id: 'e11', source: 'postrouting', target: 'data-exit', type: 'smoothstep', style: { stroke: '#4A90E2', strokeWidth: 3 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4A90E2' } }
-  ]
+    createOptimizedEdge('e9', 'postrouting', 'external-exit', {
+      style: { stroke: '#4A90E2', strokeWidth: 2, strokeDasharray: '5,5' },
+      label: topoSettings.showLabels ? '出站数据包' : '',
+      zIndex: 1
+    })
+  ].filter(edge => edge !== null) as Edge[]
 
   flowElements.value = [...nodes, ...edges]
 }
@@ -1594,6 +1852,98 @@ const onNodeClick = (event: any) => {
 // 边点击事件
 const onEdgeClick = (event: any) => {
   console.log('Edge clicked:', event.edge)
+}
+
+// 应用拓扑布局
+const applyTopoLayout = () => {
+  const nodes = flowElements.value.filter(el => el.type !== 'edge') as Node[]
+  const edges = flowElements.value.filter(el => el.type === 'edge') as Edge[]
+  
+  // 根据图片中的布局设置节点位置
+  const positions = {
+    'input': { x: 620, y: 150 },
+    'local-process': { x: 880, y: 150 },
+    'output': { x: 1140, y: 150 },
+    'external-entry': { x: 140, y: 310 },
+    'prerouting': { x: 400, y: 310 },
+    'routing-decision': { x: 620, y: 310 },
+    'forward': { x: 880, y: 310 },
+    'postrouting': { x: 1140, y: 310 },
+    'external-exit': { x: 1400, y: 310 }
+  }
+  
+  nodes.forEach(node => {
+    if (positions[node.id]) {
+      node.position = positions[node.id]
+    }
+  })
+  
+  // 更新流程图
+  flowElements.value = [...nodes, ...edges]
+}
+
+// 应用拓扑设置
+const applyTopoSettings = () => {
+  // 应用布局
+  applyTopoLayout()
+  
+  // 更新边的动画状态
+  const nodes = flowElements.value.filter(el => el.type !== 'edge') as Node[]
+  const edges = flowElements.value.filter(el => el.type === 'edge') as Edge[]
+  
+  edges.forEach(edge => {
+    edge.animated = topoSettings.animateEdges
+    
+    // 更新标签显示
+    if (edge.id === 'e4' || edge.id === 'e8') {
+      if (topoSettings.showLabels) {
+        edge.label = edge.id === 'e4' ? '本机设备' : '非本机设备'
+      } else {
+        edge.label = ''
+      }
+    }
+  })
+  
+  // 更新节点样式
+  nodes.forEach(node => {
+    if (node.type === 'chain' && node.data) {
+      node.data.nodeStyle = topoSettings.nodeStyle
+    }
+  })
+  
+  // 更新流程图
+  flowElements.value = [...nodes, ...edges]
+  
+  // 获取Vue Flow实例并适应视图
+  nextTick(() => {
+    const { fitView } = useVueFlow()
+    fitView({ padding: 0.2 })
+  })
+  
+  // 关闭对话框
+  showTopoSettingsDialog.value = false
+  
+  ElMessage.success('拓扑设置已应用')
+}
+
+// 重置拓扑设置
+const resetTopoSettings = () => {
+  Object.assign(topoSettings, {
+    layoutMode: 'horizontal',
+    nodeStyle: 'gradient',
+    enableDrag: true,
+    snapToGrid: true,
+    showMinimap: true,
+    animateEdges: true,
+    darkMode: false,
+    showLabels: true,
+    nodeDistance: 100
+  })
+  
+  // 重新初始化流程图
+  initializeFlowElements()
+  
+  ElMessage.success('拓扑设置已重置为默认值')
 }
 
 // 选择链
@@ -2493,6 +2843,280 @@ const handleInterfaceChange = () => {
   loadChainTableData()
 }
 
+// 标准化连接路径处理
+const standardizeConnectionPaths = () => {
+  const edges = flowElements.value.filter((el: any) => 'source' in el)
+  const nodes = flowElements.value.filter((el: any) => 'position' in el)
+
+  let standardizedCount = 0
+
+  edges.forEach((edge: any) => {
+    const sourceNode = nodes.find(n => n.id === edge.source)
+    const targetNode = nodes.find(n => n.id === edge.target)
+
+    if (sourceNode && targetNode) {
+      // 使用改进的路径计算，支持边缘对齐
+      const optimalPath = calculateOptimalPath(sourceNode, targetNode, nodes, edges)
+
+      // 检查是否为关键连接（外部网络→PREROUTING，PREROUTING→路由决策）
+      const isKeyConnection = (
+          (edge.source === 'interface-external' && edge.target === 'prerouting') ||
+          (edge.source === 'prerouting' && edge.target === 'routing-decision')
+      )
+
+      if (isKeyConnection) {
+        // 关键连接强制使用直线，但保持边缘对齐
+        edge.type = 'straight'
+        edge.pathOptions = optimalPath.pathOptions // 保留边缘位置信息
+
+        // 确保箭头指向正确，使用边缘对齐
+        if (edge.markerEnd) {
+          edge.markerEnd.orient = 'auto-start-reverse'
+          edge.markerEnd.markerUnits = 'userSpaceOnUse'
+          edge.markerEnd.refX = 0 // 箭头尖端对齐到连线终点
+          edge.markerEnd.refY = 0
+          edge.markerEnd.width = optimalPath.arrowSize
+          edge.markerEnd.height = optimalPath.arrowSize
+        }
+
+        // 重置样式确保直线显示
+        edge.style = {
+          ...edge.style,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          zIndex: optimalPath.zIndex
+        }
+
+        standardizedCount++
+      } else {
+        // 非关键连接也应用边缘对齐优化
+        edge.type = optimalPath.connectionType
+        edge.pathOptions = optimalPath.pathOptions
+        edge.style = {
+          ...edge.style,
+          zIndex: optimalPath.zIndex,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round'
+        }
+
+        if (edge.markerEnd) {
+          edge.markerEnd.width = optimalPath.arrowSize
+          edge.markerEnd.height = optimalPath.arrowSize
+          edge.markerEnd.orient = 'auto-start-reverse'
+          edge.markerEnd.markerUnits = 'userSpaceOnUse'
+          edge.markerEnd.refX = 0
+          edge.markerEnd.refY = 0
+        }
+
+        standardizedCount++
+      }
+    }
+  })
+
+  ElMessage.success(`连接路径已标准化，处理了 ${standardizedCount} 个连接，应用边缘对齐显示`)
+}
+
+// 计算最优连接路径（增强版）
+const calculateOptimalPath = (sourceNode: any, targetNode: any, allNodes: any[], allEdges: any[]) => {
+  // 添加安全检查，防止position属性为undefined
+  if (!sourceNode?.position || !targetNode?.position) {
+    console.warn('Node position is undefined:', { sourceNode, targetNode })
+    return {
+      needsOptimization: false,
+      connectionType: 'straight',
+      pathOptions: {},
+      arrowSize: 20,
+      zIndex: 1000,
+      edgePositions: null
+    }
+  }
+
+  // 计算节点边缘位置
+  const sourceEdge = getNodeEdgePosition(sourceNode, targetNode, true)
+  const targetEdge = getNodeEdgePosition(targetNode, sourceNode, false)
+
+  const dx = targetEdge.x - sourceEdge.x
+  const dy = targetEdge.y - sourceEdge.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+
+  // 优先使用直线连接，确保一致性
+  let connectionType = 'straight'
+  let pathOptions: any = {}
+  let needsAvoidance = false
+
+  // 检查是否为关键连接（外部网络→PREROUTING，PREROUTING→路由决策）
+  const isKeyConnection = (
+      (sourceNode.id === 'interface-external' && targetNode.id === 'prerouting') ||
+      (sourceNode.id === 'prerouting' && targetNode.id === 'routing-decision')
+  )
+
+  // 关键连接始终保持直线，不进行避让优化
+  if (isKeyConnection) {
+    connectionType = 'straight'
+    pathOptions = {
+      // 使用边缘位置进行连接
+      sourceX: sourceEdge.x,
+      sourceY: sourceEdge.y,
+      targetX: targetEdge.x,
+      targetY: targetEdge.y
+    }
+  } else {
+    // 检测是否需要避让其他节点
+    needsAvoidance = checkNodeAvoidance(sourceNode, targetNode, allNodes)
+
+    // 只有在必须避让时才使用曲线连接
+    if (needsAvoidance) {
+      connectionType = 'smoothstep'
+
+      // 水平连接（左右节点）
+      if (Math.abs(dy) < 50 && Math.abs(dx) > 100) {
+        pathOptions = {
+          borderRadius: 8,
+          offset: 30,
+          centerX: 0.5,
+          centerY: 0.5,
+          sourceX: sourceEdge.x,
+          sourceY: sourceEdge.y,
+          targetX: targetEdge.x,
+          targetY: targetEdge.y
+        }
+      }
+      // 垂直连接（上下节点）
+      else if (Math.abs(dx) < 50 && Math.abs(dy) > 80) {
+        pathOptions = {
+          borderRadius: 12,
+          offset: 35,
+          centerX: 0.5,
+          centerY: 0.5,
+          sourceX: sourceEdge.x,
+          sourceY: sourceEdge.y,
+          targetX: targetEdge.x,
+          targetY: targetEdge.y
+        }
+      }
+      // 对角线连接
+      else {
+        pathOptions = {
+          borderRadius: 15,
+          offset: Math.max(30, distance / 6),
+          centerX: dx > 0 ? 0.3 : 0.7,
+          centerY: dy > 0 ? 0.3 : 0.7,
+          sourceX: sourceEdge.x,
+          sourceY: sourceEdge.y,
+          targetX: targetEdge.x,
+          targetY: targetEdge.y
+        }
+      }
+    } else {
+      // 直线连接也使用边缘位置
+      pathOptions = {
+        sourceX: sourceEdge.x,
+        sourceY: sourceEdge.y,
+        targetX: targetEdge.x,
+        targetY: targetEdge.y
+      }
+    }
+  }
+
+// 计算箭头大小 - 增大50%以提升可见性
+  let arrowSize = 27 // 默认大小（18 * 1.5）
+  if (distance < 150) {
+    arrowSize = 21 // 14 * 1.5
+  } else if (distance > 300) {
+    arrowSize = 33 // 22 * 1.5
+  }
+
+  // 计算Z-index层级
+  const zIndex = calculateEdgeZIndex(sourceNode, targetNode, allEdges)
+
+  return {
+    needsOptimization: needsAvoidance,
+    connectionType,
+    pathOptions,
+    arrowSize,
+    zIndex,
+    edgePositions: {
+      source: sourceEdge,
+      target: targetEdge
+    }
+  }
+}
+
+// 检查是否需要避让其他节点
+const checkNodeAvoidance = (sourceNode: any, targetNode: any, allNodes: any[]) => {
+  // 添加安全检查
+  if (!sourceNode?.position || !targetNode?.position) {
+    return false
+  }
+
+  const path = {
+    x1: sourceNode.position.x,
+    y1: sourceNode.position.y,
+    x2: targetNode.position.x,
+    y2: targetNode.position.y
+  }
+
+  // 检查路径是否经过其他节点
+  return allNodes.some(node => {
+    if (node.id === sourceNode.id || node.id === targetNode.id) return false
+
+    // 添加安全检查，防止node.position为undefined
+    if (!node?.position) return false
+
+    const nodeCenter = {
+      x: node.position.x + 50, // 假设节点宽度100px
+      y: node.position.y + 40   // 假设节点高度80px
+    }
+
+    // 计算点到线段的距离
+    const distance = pointToLineDistance(nodeCenter, path)
+    return distance < 60 // 如果距离小于60px，需要避让
+  })
+}
+
+// 点到线段距离计算
+const pointToLineDistance = (point: any, line: any) => {
+  const A = point.x - line.x1
+  const B = point.y - line.y1
+  const C = line.x2 - line.x1
+  const D = line.y2 - line.y1
+
+  const dot = A * C + B * D
+  const lenSq = C * C + D * D
+
+  if (lenSq === 0) return Math.sqrt(A * A + B * B)
+
+  let param = dot / lenSq
+  param = Math.max(0, Math.min(1, param))
+
+  const xx = line.x1 + param * C
+  const yy = line.y1 + param * D
+
+  const dx = point.x - xx
+  const dy = point.y - yy
+
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+// 计算边的Z-index层级
+const calculateEdgeZIndex = (sourceNode: any, targetNode: any, allEdges: any[]) => {
+  // 基础层级
+  let baseZIndex = 1000
+
+  // 关键路径获得更高层级
+  if (sourceNode.data?.chainType === 'forward' || targetNode.data?.chainType === 'forward') {
+    baseZIndex += 100
+  }
+
+  // 根据连接重要性调整
+  if (sourceNode.type === 'interface' || targetNode.type === 'interface') {
+    baseZIndex += 50
+  }
+
+  return baseZIndex
+}
+
+
 const handleViewModeChange = () => {
   selectedChain.value = ''
 }
@@ -2509,6 +3133,12 @@ onMounted(async () => {
   // 确保数据加载完成后再初始化流程图
   nextTick(() => {
     initializeFlowElements()
+    
+    // 适应视图
+    setTimeout(() => {
+      const { fitView } = useVueFlow()
+      fitView({ padding: 0.2 })
+    }, 100)
   })
 })
 
@@ -2566,6 +3196,28 @@ watch([selectedInterfaces, selectedProtocols, selectedTargets, ipRangeFilter, po
   if (chainTableData.value && chainTableData.value.chains) {
     nextTick(() => {
       initializeFlowElements()
+    })
+  }
+}, { deep: true })
+
+// 监听拓扑设置变化，更新拓扑图
+watch(topoSettings, () => {
+  console.log('拓扑设置变化，更新拓扑图')
+  if (viewMode.value === 'chain' && chainTableData.value && chainTableData.value.chains) {
+    nextTick(() => {
+      // 如果是布局模式变化，重新初始化流程图
+      if (topoSettings.layoutMode) {
+        initializeFlowElements()
+      } else {
+        // 否则只应用拓扑设置
+        applyTopoSettings()
+      }
+      
+      // 适应视图
+      setTimeout(() => {
+        const { fitView } = useVueFlow()
+        fitView({ padding: 0.2 })
+      }, 100)
     })
   }
 }, { deep: true })
@@ -2629,44 +3281,114 @@ watch([selectedInterfaces, selectedProtocols, selectedTargets, ipRangeFilter, po
 
 /* 自定义节点样式 */
 .chain-node {
-  background: white;
-  border: 2px solid #e1e5e9;
-  border-radius: 12px;
-  padding: 15px;
-  min-width: 160px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 140px;
   transition: all 0.3s ease;
   cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* 扁平风格 */
+.chain-node.flat {
+  background: white;
+  border: 1px solid #e1e5e9;
+}
+
+/* 渐变风格 */
+.chain-node.gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f7fa 100%);
+  border: 1px solid #e1e5e9;
+}
+
+/* 玻璃风格 */
+.chain-node.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .chain-node:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
 }
 
-.chain-node.prerouting {
-  border-color: #ff6b6b;
-  background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+/* 链节点颜色 - 扁平风格 */
+.chain-node.flat.prerouting {
+  border: 2px solid #ff9800;
+  background: #fff8e1;
 }
 
-.chain-node.input {
-  border-color: #4ecdc4;
-  background: linear-gradient(135deg, #f0fdfc 0%, #ccfbf1 100%);
+.chain-node.flat.input {
+  border: 2px solid #8bc34a;
+  background: #f1f8e9;
 }
 
-.chain-node.forward {
-  border-color: #45b7d1;
-  background: linear-gradient(135deg, #f0f9ff 0%, #dbeafe 100%);
+.chain-node.flat.forward {
+  border: 2px solid #ff5722;
+  background: #fbe9e7;
 }
 
-.chain-node.output {
-  border-color: #96ceb4;
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+.chain-node.flat.output {
+  border: 2px solid #03a9f4;
+  background: #e1f5fe;
 }
 
-.chain-node.postrouting {
-  border-color: #feca57;
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+.chain-node.flat.postrouting {
+  border: 2px solid #9c27b0;
+  background: #f3e5f5;
+}
+
+/* 链节点颜色 - 渐变风格 */
+.chain-node.gradient.prerouting {
+  border: 2px solid #ff9800;
+  background: linear-gradient(135deg, #fff8e1 0%, #ffe0b2 100%);
+}
+
+.chain-node.gradient.input {
+  border: 2px solid #8bc34a;
+  background: linear-gradient(135deg, #f1f8e9 0%, #dcedc8 100%);
+}
+
+.chain-node.gradient.forward {
+  border: 2px solid #ff5722;
+  background: linear-gradient(135deg, #fbe9e7 0%, #ffccbc 100%);
+}
+
+.chain-node.gradient.output {
+  border: 2px solid #03a9f4;
+  background: linear-gradient(135deg, #e1f5fe 0%, #b3e5fc 100%);
+}
+
+.chain-node.gradient.postrouting {
+  border: 2px solid #9c27b0;
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+}
+
+/* 链节点颜色 - 玻璃风格 */
+.chain-node.glass.prerouting {
+  border: 2px solid rgba(255, 152, 0, 0.5);
+  background: rgba(255, 248, 225, 0.7);
+}
+
+.chain-node.glass.input {
+  border: 2px solid rgba(139, 195, 74, 0.5);
+  background: rgba(241, 248, 233, 0.7);
+}
+
+.chain-node.glass.forward {
+  border: 2px solid rgba(255, 87, 34, 0.5);
+  background: rgba(251, 233, 231, 0.7);
+}
+
+.chain-node.glass.output {
+  border: 2px solid rgba(3, 169, 244, 0.5);
+  background: rgba(225, 245, 254, 0.7);
+}
+
+.chain-node.glass.postrouting {
+  border: 2px solid rgba(156, 39, 176, 0.5);
+  background: rgba(243, 229, 245, 0.7);
 }
 
 .chain-title {
@@ -2686,12 +3408,14 @@ watch([selectedInterfaces, selectedProtocols, selectedTargets, ipRangeFilter, po
 }
 
 .table-tag {
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: inline-block;
+  margin: 2px;
 }
 
 .table-tag:hover {
@@ -2699,22 +3423,22 @@ watch([selectedInterfaces, selectedProtocols, selectedTargets, ipRangeFilter, po
 }
 
 .table-tag.raw {
-  background: #ff6b6b;
+  background: #ff5722;
   color: white;
 }
 
 .table-tag.mangle {
-  background: #4ecdc4;
+  background: #ff9800;
   color: white;
 }
 
 .table-tag.nat {
-  background: #45b7d1;
+  background: #03a9f4;
   color: white;
 }
 
 .table-tag.filter {
-  background: #96ceb4;
+  background: #8bc34a;
   color: white;
 }
 
@@ -2726,66 +3450,159 @@ watch([selectedInterfaces, selectedProtocols, selectedTargets, ipRangeFilter, po
 }
 
 .decision-node {
-  background: #feca57;
-  border: 2px solid #f39c12;
-  border-radius: 50%;
-  width: 120px;
-  height: 120px;
+  background: #ff9800;
+  border: none;
+  border-radius: 8px;
+  width: 100px;
+  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
   transition: all 0.3s ease;
 }
 
 .decision-node:hover {
   transform: scale(1.05);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.2);
 }
 
 .decision-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
+}
+
+.decision-icon {
+  font-size: 20px;
+  margin-bottom: 6px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.router-icon {
+  font-size: 24px;
+  color: white;
+}
+
+.decision-label {
   font-weight: bold;
-  color: #2d3748;
-  font-size: 0.9rem;
+  color: #ffffff;
+  font-size: 0.85rem;
   line-height: 1.2;
+  max-width: 90px;
 }
 
 .endpoint-node {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 25px;
-  padding: 12px 20px;
+  background: #f5f7fa;
+  color: #333;
+  border-radius: 8px;
+  padding: 10px 15px;
   font-weight: bold;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
   transition: all 0.3s ease;
+  min-width: 120px;
+  border: 1px solid #e1e5e9;
 }
 
 .endpoint-node:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
 }
 
 .endpoint-node.entry {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: #f1f8e9;
+  border: 1px solid #8bc34a;
 }
 
 .endpoint-node.exit {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  background: #f1f8e9;
+  border: 1px solid #8bc34a;
+}
+
+.endpoint-node.protocol {
+  background: #f5f7fa;
+  border: 1px solid #e1e5e9;
+}
+
+.endpoint-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-direction: column;
+}
+
+.endpoint-icon {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.server-icon {
+  font-size: 24px;
+  color: #4A90E2;
+}
+
+.endpoint-label {
+  font-weight: bold;
+  font-size: 0.85rem;
+  text-align: center;
 }
 
 .process-node {
-  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  background: #9c27b0;
   color: white;
-  border-radius: 12px;
-  padding: 15px 20px;
+  border-radius: 8px;
+  padding: 12px 15px;
   font-weight: bold;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
   transition: all 0.3s ease;
+  min-width: 100px;
 }
 
 .process-node:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+}
+
+.process-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.process-icon {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gear-icon {
+  font-size: 24px;
+  color: white;
+}
+
+.process-label {
+  font-weight: bold;
+  font-size: 0.85rem;
 }
 
 .protocol-node {
@@ -2797,11 +3614,35 @@ watch([selectedInterfaces, selectedProtocols, selectedTargets, ipRangeFilter, po
   color: #2d3748;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   transition: all 0.3s ease;
+  min-width: 160px;
 }
 
 .protocol-node:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+.protocol-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.protocol-icon {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2d3748;
+}
+
+.protocol-label {
+  font-weight: bold;
+  font-size: 0.9rem;
 }
 
 .loading-container {
@@ -2823,6 +3664,20 @@ watch([selectedInterfaces, selectedProtocols, selectedTargets, ipRangeFilter, po
   font-size: 0.8rem;
   font-weight: 500;
   color: #2d3748;
+}
+
+:deep(.vue-flow__edge.animated .vue-flow__edge-path) {
+  stroke-dasharray: 5, 5;
+  animation: flowEdgeAnimation 1s linear infinite;
+}
+
+@keyframes flowEdgeAnimation {
+  from {
+    stroke-dashoffset: 10;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 :deep(.vue-flow__controls) {
@@ -3398,6 +4253,200 @@ watch([selectedInterfaces, selectedProtocols, selectedTargets, ipRangeFilter, po
   text-align: center;
   padding-top: 16px;
   border-top: 1px solid #eee;
+}
+
+/* 拓扑图节点样式 - 新增 */
+/* 扁平风格 */
+.chain-node.flat {
+  background: white;
+  border: 2px solid #e1e5e9;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* 渐变风格 */
+.chain-node.gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f7fa 100%);
+  border: 2px solid #e1e5e9;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+}
+
+/* 玻璃风格 */
+.chain-node.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+}
+
+/* 链节点颜色 - 扁平风格 */
+.chain-node.flat.prerouting {
+  border-color: #ff6b6b;
+  background: #fff5f5;
+}
+
+.chain-node.flat.input {
+  border-color: #4ecdc4;
+  background: #f0fdfc;
+}
+
+.chain-node.flat.forward {
+  border-color: #45b7d1;
+  background: #f0f9ff;
+}
+
+.chain-node.flat.output {
+  border-color: #96ceb4;
+  background: #f0fdf4;
+}
+
+.chain-node.flat.postrouting {
+  border-color: #feca57;
+  background: #fffbeb;
+}
+
+/* 链节点颜色 - 渐变风格 */
+.chain-node.gradient.prerouting {
+  border-color: #ff6b6b;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+}
+
+.chain-node.gradient.input {
+  border-color: #4ecdc4;
+  background: linear-gradient(135deg, #f0fdfc 0%, #ccfbf1 100%);
+}
+
+.chain-node.gradient.forward {
+  border-color: #45b7d1;
+  background: linear-gradient(135deg, #f0f9ff 0%, #dbeafe 100%);
+}
+
+.chain-node.gradient.output {
+  border-color: #96ceb4;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.chain-node.gradient.postrouting {
+  border-color: #feca57;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+/* 链节点颜色 - 玻璃风格 */
+.chain-node.glass.prerouting {
+  border-color: rgba(255, 107, 107, 0.3);
+  background: rgba(255, 245, 245, 0.7);
+}
+
+.chain-node.glass.input {
+  border-color: rgba(78, 205, 196, 0.3);
+  background: rgba(240, 253, 252, 0.7);
+}
+
+.chain-node.glass.forward {
+  border-color: rgba(69, 183, 209, 0.3);
+  background: rgba(240, 249, 255, 0.7);
+}
+
+.chain-node.glass.output {
+  border-color: rgba(150, 206, 180, 0.3);
+  background: rgba(240, 253, 244, 0.7);
+}
+
+.chain-node.glass.postrouting {
+  border-color: rgba(254, 202, 87, 0.3);
+  background: rgba(255, 251, 235, 0.7);
+}
+
+/* 决策节点样式 */
+.decision-node.flat {
+  background: #feca57;
+  border: 2px solid #f39c12;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.decision-node.gradient {
+  background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+  border: 2px solid #f39c12;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+}
+
+.decision-node.glass {
+  background: rgba(254, 202, 87, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(243, 156, 18, 0.3);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+}
+
+/* 端点节点样式 */
+.endpoint-node.flat {
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border: 2px solid #e1e5e9;
+}
+
+.endpoint-node.gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f7fa 100%);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+  border: 2px solid #e1e5e9;
+}
+
+.endpoint-node.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+}
+
+/* 进程节点样式 */
+.process-node.flat {
+  background: #e0e7ff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border: 2px solid #a5b4fc;
+}
+
+.process-node.gradient {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+  border: 2px solid #a5b4fc;
+}
+
+.process-node.glass {
+  background: rgba(224, 231, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(165, 180, 252, 0.3);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+}
+
+/* 协议节点样式 */
+.protocol-node.flat {
+  background: #dbeafe;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border: 2px solid #93c5fd;
+}
+
+.protocol-node.gradient {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+  border: 2px solid #93c5fd;
+}
+
+.protocol-node.glass {
+  background: rgba(219, 234, 254, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+}
+
+/* 暗色模式支持 */
+.dataflow-diagram.dark {
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+}
+
+.dataflow-diagram.dark .vue-flow__edge-path {
+  stroke: rgba(255, 255, 255, 0.7);
+}
+
+.dataflow-diagram.dark .vue-flow__edge-text {
+  fill: white;
 }
 
 /* 响应式设计 */

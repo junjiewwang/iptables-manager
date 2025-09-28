@@ -27,7 +27,7 @@ COPY backend/ ./backend/
 WORKDIR /app/backend
 RUN go mod tidy && CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o /app/iptables-backend .
 
-# 第三阶段：运行阶段
+# 第四阶段：运行阶段
 FROM debian:bullseye-slim
 
 # 安装运行时依赖并清理缓存
@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y ca-certificates iptables sqlite3 iprout
 
 WORKDIR /app
 
-# 从构建阶段复制二进制文件
+# 从后端构建阶段复制二进制文件
 COPY --from=backend-builder /app/iptables-backend ./main
 
 # 从前端构建阶段复制构建产物
@@ -43,9 +43,6 @@ COPY --from=frontend-builder /app/frontend/dist/ ./dist/
 
 # 复制scripts目录
 COPY scripts/ ./scripts/
-
-# 创建配置文件和数据目录
-RUN touch .env && mkdir -p /app/data
 
 # 暴露端口
 EXPOSE 8080
