@@ -324,6 +324,9 @@ export const rulesAPI = {
   // 同步系统规则（新增）
   syncSystemRules: () => api.post('/rules/sync'),
   
+  // 清除无效规则
+  cleanInvalidRules: (dryRun: boolean = false) => api.post(`/rules/clean?dry_run=${dryRun}`),
+  
   // 添加规则
   addRule: (rule: Partial<IPTablesRule>) => api.post('/rules', rule),
   

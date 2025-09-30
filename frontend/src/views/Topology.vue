@@ -407,10 +407,7 @@ import {Controls} from '@vue-flow/controls'
 import {MiniMap} from '@vue-flow/minimap'
 
 // 导入样式
-import '@vue-flow/core/dist/style.css'
-import '@vue-flow/core/dist/theme-default.css'
-import '@vue-flow/controls/dist/style.css'
-import '@vue-flow/minimap/dist/style.css'
+import '@/assets/vue-flow-styles.css'
 
 // 响应式数据
 const loading = ref(false)

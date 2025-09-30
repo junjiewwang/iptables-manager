@@ -1,0 +1,302 @@
+/* Vue Flow 核心样式导入 */
+@import '@vue-flow/core/dist/style.css';
+@import '@vue-flow/core/dist/theme-default.css';
+@import '@vue-flow/controls/dist/style.css';
+@import '@vue-flow/minimap/dist/style.css';
+
+/* 全局容器样式 */
+.vue-flow-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* 基础节点样式 */
+.vue-flow__node {
+  border-radius: 8px;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.vue-flow__node:hover {
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.vue-flow__node.selected {
+  box-shadow: 0 0 0 2px #3498db, 0 5px 15px rgba(0, 0, 0, 0.15);
+}
+
+/* 连接线样式 */
+.vue-flow__edge-path {
+  stroke-width: 2px;
+  transition: all 0.3s ease;
+}
+
+.vue-flow__edge-label {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #2d3748;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+}
+
+/* 虚线连接动画效果 */
+.vue-flow__edge.animated .vue-flow__edge-path {
+  stroke-dasharray: 5, 5;
+  animation: dashFlow 2s linear infinite;
+}
+
+@keyframes dashFlow {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 20;
+  }
+}
+
+/* 增强箭头样式 */
+.vue-flow__edge .vue-flow__edge-marker {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+/* 连接线悬停效果 */
+.vue-flow__edge:hover .vue-flow__edge-path {
+  stroke-width: 3px !important;
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+/* 关键连接线特殊样式 */
+.vue-flow__edge[data-key="true"] .vue-flow__edge-path {
+  stroke-width: 3px;
+  stroke-dasharray: 12, 6;
+  filter: drop-shadow(0 0 4px rgba(64, 158, 255, 0.3));
+}
+
+/* 普通连接线样式 */
+.vue-flow__edge:not([data-key="true"]) .vue-flow__edge-path {
+  stroke-width: 2.5px;
+}
+
+/* 控制面板样式 */
+.vue-flow__controls {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 4px;
+}
+
+.vue-flow__controls-button {
+  border: none !important;
+  background: transparent !important;
+  color: #4a5568 !important;
+  transition: all 0.2s ease !important;
+  border-radius: 6px !important;
+  margin: 2px !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.vue-flow__controls-button:hover {
+  background: #e2e8f0 !important;
+  color: #2d3748 !important;
+}
+
+/* 小地图样式 */
+.vue-flow__minimap {
+  transform: scale(75%);
+  transform-origin: bottom right;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+/* 连接点样式 */
+.vue-flow__handle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #64748b;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.vue-flow__handle:hover {
+  transform: scale(1.3);
+  background-color: #3498db;
+}
+
+/* 暗色模式支持 */
+.dataflow-diagram.dark {
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+}
+
+.dataflow-diagram.dark .vue-flow__edge-path {
+  stroke: rgba(255, 255, 255, 0.7);
+}
+
+.dataflow-diagram.dark .vue-flow__edge-text {
+  fill: white;
+}
+
+.dataflow-diagram.dark .vue-flow__controls {
+  background: rgba(45, 55, 72, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dataflow-diagram.dark .vue-flow__controls-button {
+  color: #e2e8f0 !important;
+}
+
+.dataflow-diagram.dark .vue-flow__controls-button:hover {
+  background: #4a5568 !important;
+  color: white !important;
+}
+
+.dataflow-diagram.dark .vue-flow__minimap {
+  background: rgba(45, 55, 72, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dataflow-diagram.dark .vue-flow__edge-label {
+  background: rgba(45, 55, 72, 0.9);
+  color: #e2e8f0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .vue-flow__minimap {
+    transform: scale(60%);
+  }
+  
+  .vue-flow__controls {
+    transform: scale(90%);
+  }
+  
+  .vue-flow__edge-label {
+    font-size: 0.7rem;
+    padding: 3px 6px;
+  }
+}
+
+/* 自定义节点样式 */
+/* 链节点样式 */
+.chain-node {
+  padding: 12px;
+  border-radius: 8px;
+  min-width: 150px;
+  transition: all 0.3s ease;
+}
+
+/* 决策节点样式 */
+.decision-node {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+/* 端点节点样式 */
+.endpoint-node {
+  padding: 12px;
+  border-radius: 8px;
+  min-width: 120px;
+  transition: all 0.3s ease;
+}
+
+/* 进程节点样式 */
+.process-node {
+  padding: 12px;
+  border-radius: 8px;
+  min-width: 140px;
+  transition: all 0.3s ease;
+}
+
+/* 协议节点样式 */
+.protocol-node {
+  padding: 12px;
+  border-radius: 8px;
+  min-width: 130px;
+  transition: all 0.3s ease;
+}
+
+/* 节点内容布局 */
+.chain-header,
+.decision-content,
+.endpoint-content,
+.process-content,
+.protocol-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.chain-title,
+.decision-label,
+.endpoint-label,
+.process-label,
+.protocol-label {
+  margin: 0;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* 图标样式 */
+.decision-icon,
+.endpoint-icon,
+.process-icon,
+.protocol-icon {
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 表格标签样式 */
+.table-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  margin: 2px;
+  background: rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.table-tag:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* 链统计信息样式 */
+.chain-stats {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+/* 可拖拽连接线样式 */
+.vue-flow__connection-path {
+  stroke: #222;
+  stroke-width: 2px;
+  fill: none;
+}

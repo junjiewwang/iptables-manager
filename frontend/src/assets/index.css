@@ -1,0 +1,14 @@
+/* 全局应用样式 */
+html,
+body,
+#app {
+    margin: 0;
+    height: 100%;
+}
+
+#app {
+    font-family: 'JetBrains Mono', monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #2c3e50;
+}

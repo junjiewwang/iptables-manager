@@ -85,7 +85,7 @@ const getPageTitle = () => {
     '/chain-table-view': '五链四表可视化',
     '/interfaces': '网络接口',
     '/tunnel-analysis': '隧道接口分析',
-    '/logs': '操作日志'
+    '/logs': '操作日志',
   }
   return titles[router.currentRoute.value.path] || '管理系统'
 }

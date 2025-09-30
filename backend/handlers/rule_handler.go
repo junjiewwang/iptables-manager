@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -220,4 +221,43 @@ func (h *RuleHandler) SyncSystemRules(c *gin.Context) {
 
 	log.Println("[DEBUG] System rules synced successfully")
 	c.JSON(http.StatusOK, gin.H{"message": "系统规则同步成功"})
+}
+
+// CleanInvalidRules 清除无效规则
+func (h *RuleHandler) CleanInvalidRules(c *gin.Context) {
+	log.Println("[DEBUG] CleanInvalidRules API called")
+
+	// 获取查询参数
+	dryRunStr := c.DefaultQuery("dry_run", "false")
+	dryRun := dryRunStr == "true"
+
+	// 获取用户名
+	username, exists := c.Get("username")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户未认证"})
+		return
+	}
+
+	// 调用服务层方法
+	result, err := h.ruleService.CleanInvalidRules(dryRun, username.(string))
+	if err != nil {
+		log.Printf("[ERROR] Failed to clean invalid rules: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "清除无效规则失败: " + err.Error()})
+		return
+	}
+
+	// 记录操作日志
+	if !dryRun && result.TotalCleaned > 0 {
+		h.logService.LogOperation(
+			username.(string),
+			"清除无效规则",
+			fmt.Sprintf("清除了 %d 条无效规则（重复: %d, 无效网桥: %d, 无效链: %d, 无效目标: %d）",
+				result.TotalCleaned, result.DuplicateRules, result.InvalidBridges,
+				result.InvalidChains, result.InvalidTargets),
+			c.ClientIP(),
+		)
+	}
+
+	log.Printf("[DEBUG] CleanInvalidRules completed: %+v", result)
+	c.JSON(http.StatusOK, result)
 }

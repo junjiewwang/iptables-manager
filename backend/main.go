@@ -102,6 +102,7 @@ func main() {
 			auth.GET("/rules/system", ruleHandler.GetSystemRules)
 			auth.GET("/rules/compare", ruleHandler.CompareSystemAndDatabaseRules)
 			auth.POST("/rules/sync", ruleHandler.SyncSystemRules)
+			auth.POST("/rules/clean", ruleHandler.CleanInvalidRules)
 
 			// 统计信息
 			auth.GET("/statistics", ruleHandler.GetStatistics)

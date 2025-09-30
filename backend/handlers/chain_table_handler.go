@@ -81,7 +81,7 @@ func (h *ChainTableHandler) GetChainTableData(c *gin.Context) {
 	// 构建响应数据
 	response := h.buildChainTableResponse(rules)
 
-	log.Printf("[DEBUG] Retrieved chain-table data with %d chains, %d tables", len(response.Chains), len(response.Tables))
+	log.Printf("[DEBUG] Retrieved ChainTable data with %d chains, %d tables", len(response.Chains), len(response.Tables))
 	c.JSON(http.StatusOK, response)
 }
 
