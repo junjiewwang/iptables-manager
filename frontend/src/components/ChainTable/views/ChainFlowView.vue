@@ -10,9 +10,9 @@
         :snap-to-grid="true"
         :snap-grid="[20, 20]"
         :node-draggable="true"
-        :auto-connect="false"
-        :connection-mode="ConnectionMode.Strict"
-        :fit-view-on-init="false"
+        :auto-connect="true"
+        :connection-mode="ConnectionMode.Loose"
+        :fit-view-on-init="true"
         :elevate-edges-on-select="true"
         class="dataflow-diagram"
         @node-click="onNodeClick"
@@ -32,14 +32,13 @@
         <!-- 小地图 -->
         <MiniMap />
 
-        <!-- 布局控制面板 -->
+        <!-- 布局控制面板（仅水平LR），支持折叠 -->
         <Panel position="top-right" class="layout-control-panel">
           <LayoutPanel
             :current-direction="layoutDirection"
             :node-spacing="layoutSettings.nodeSpacing"
             :rank-spacing="layoutSettings.rankSpacing"
             :animate-layout="layoutSettings.animateLayout"
-            @layout-change="onLayoutChange"
             @fit-view="onFitView"
             @reset-layout="onResetLayout"
             @spacing-change="onSpacingChange"
@@ -88,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, nextTick } from 'vue'
+// Vue函数通过unplugin-auto-import自动导入
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
@@ -121,16 +120,22 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 // 使用VueFlow和布局功能
-const { fitView } = useVueFlow()
+const { fitView, updateNode } = useVueFlow()
 const { layout } = useLayout()
 
-// 布局设置
-const layoutDirection = ref('TB')
+// 布局设置（仅水平LR）
+const layoutDirection = ref('LR')
 const layoutSettings = reactive({
-  nodeSpacing: 80,
-  rankSpacing: 120,
+  nodeSpacing: 40,
+  rankSpacing: 80,
   animateLayout: true
 })
+
+// 统一的布局方向→连接点映射（仅LR）
+function getHandlePositionsByDirection(direction: string) {
+  // 仅支持LR，其他输入一律回退为LR
+  return { nodeSource: 'right', nodeTarget: 'left', edgeSource: 'right', edgeTarget: 'left' }
+}
 
 // 初始节点位置（用于重置）
 const initialNodePositions = new Map()
@@ -358,7 +363,10 @@ const edges = ref([
     type: 'flow',
     data: { 
       label: '入站数据包',
-      description: '从外部网络进入的数据包'
+      description: '从外部网络进入的数据包',
+      // 添加连接点信息到data中
+      sourcePosition: 'right',
+      targetPosition: 'left'
     },
     style: { 
       stroke: '#3b82f6', 
@@ -377,7 +385,9 @@ const edges = ref([
     type: 'flow',
     data: { 
       label: '预路由处理',
-      description: '经过PREROUTING链处理后的数据包'
+      description: '经过PREROUTING链处理后的数据包',
+      sourcePosition: 'right',
+      targetPosition: 'left'
     },
     style: { 
       stroke: '#3b82f6', 
@@ -395,7 +405,9 @@ const edges = ref([
     type: 'flow',
     data: { 
       label: '发往本机',
-      description: '目的地为本机的数据包'
+      description: '目的地为本机的数据包',
+      sourcePosition: 'right',
+      targetPosition: 'left'
     },
     style: { 
       stroke: '#22c55e', 
@@ -413,7 +425,9 @@ const edges = ref([
     type: 'flow',
     data: { 
       label: '转发处理',
-      description: '需要转发的数据包'
+      description: '需要转发的数据包',
+      sourcePosition: 'right',
+      targetPosition: 'left'
     },
     style: { 
       stroke: '#f59e0b', 
@@ -431,7 +445,9 @@ const edges = ref([
     type: 'flow',
     data: { 
       label: '输入过滤',
-      description: '经过INPUT链过滤后的数据包'
+      description: '经过INPUT链过滤后的数据包',
+      sourcePosition: 'right',
+      targetPosition: 'left'
     },
     style: { 
       stroke: '#22c55e', 
@@ -449,7 +465,9 @@ const edges = ref([
     type: 'flow',
     data: { 
       label: '本地响应',
-      description: '本地应用程序生成的响应数据包'
+      description: '本地应用程序生成的响应数据包',
+      sourcePosition: 'right',
+      targetPosition: 'left'
     },
     style: { 
       stroke: '#a855f7', 
@@ -467,7 +485,9 @@ const edges = ref([
     type: 'flow',
     data: { 
       label: '出站数据包',
-      description: '经过OUTPUT链处理后的数据包'
+      description: '经过OUTPUT链处理后的数据包',
+      sourcePosition: 'right',
+      targetPosition: 'left'
     },
     style: { 
       stroke: '#22c55e', 
@@ -485,7 +505,9 @@ const edges = ref([
     type: 'flow',
     data: { 
       label: '转发数据包',
-      description: '经过FORWARD链处理后的数据包'
+      description: '经过FORWARD链处理后的数据包',
+      sourcePosition: 'right',
+      targetPosition: 'left'
     },
     style: { 
       stroke: '#f59e0b', 
@@ -503,7 +525,9 @@ const edges = ref([
     type: 'flow',
     data: { 
       label: '路由后处理',
-      description: '经过POSTROUTING链处理后的数据包'
+      description: '经过POSTROUTING链处理后的数据包',
+      sourcePosition: 'right',
+      targetPosition: 'left'
     },
     style: { 
       stroke: '#3b82f6', 
@@ -515,65 +539,127 @@ const edges = ref([
   }
 ])
 
-// 布局相关方法
-const applyLayout = async (direction: string = layoutDirection.value) => {
+// 布局相关方法（仅LR）
+const applyLayout = async (direction: string = 'LR') => {
   try {
-    console.log(`应用布局: ${direction}，节点间距: ${layoutSettings.nodeSpacing}，层级间距: ${layoutSettings.rankSpacing}`)
-    
-    // 更新布局方向
-    layoutDirection.value = direction
-    
-    // 获取布局后的节点
-    const layoutedNodes = layout(nodes.value, edges.value, direction)
-    
+    console.log(`🔄 应用布局(仅LR): 节点间距: ${layoutSettings.nodeSpacing}，层级间距: ${layoutSettings.rankSpacing}`)
+    layoutDirection.value = 'LR'
+
+    const dirMap = getHandlePositionsByDirection('LR')
+    console.log(`🧭 方向映射(LR): nodeSource=${dirMap.nodeSource}, nodeTarget=${dirMap.nodeTarget}, edgeSource=${dirMap.edgeSource}, edgeTarget=${dirMap.edgeTarget}`)
+
+    // 获取布局后的节点(坐标)，并统一把手为LR
+    const layoutedNodesRaw = layout({
+      nodes: nodes.value,
+      edges: edges.value,
+      direction: 'LR',
+      nodeSpacing: layoutSettings.nodeSpacing,
+      rankSpacing: layoutSettings.rankSpacing
+    })
+
+    const layoutedNodes = layoutedNodesRaw.map((n: any) => ({
+      ...n,
+      sourcePosition: dirMap.nodeSource,
+      targetPosition: dirMap.nodeTarget,
+    }))
+
+    console.log('📍 布局后节点连接点信息(LR):')
+    layoutedNodes.forEach((node: any) => {
+      console.log(`  节点 ${node.id}: sourcePosition=${node.sourcePosition}, targetPosition=${node.targetPosition}, position=(${node.position.x}, ${node.position.y})`)
+    })
+
+    // 更新边（统一为LR）
+    console.log('🔗 更新边的连接点信息(LR):')
+    edges.value = edges.value.map((edge: any) => {
+      const updatedEdge = {
+        ...edge,
+        sourcePosition: dirMap.edgeSource,
+        targetPosition: dirMap.edgeTarget,
+        sourceHandle: `${edge.source}-source`,
+        targetHandle: `${edge.target}-target`,
+        data: {
+          ...edge.data,
+          sourcePosition: dirMap.edgeSource,
+          targetPosition: dirMap.edgeTarget,
+        },
+      }
+      console.log(
+        `  边 ${edge.id}: ${edge.source}(${updatedEdge.sourcePosition}) → ${edge.target}(${updatedEdge.targetPosition})`
+      )
+      return updatedEdge
+    })
+
     if (layoutSettings.animateLayout) {
-      // 使用更平滑的动画过渡
-      const transitionDuration = 800 // 增加总过渡时间（毫秒）
-      const staggerDelay = 10 // 减少节点之间的延迟（毫秒）
-      
-      // 为每个节点应用动画
+      const transitionDuration = 300
+      const staggerDelay = 10
+      console.log('🎬 开始动画更新节点(LR)...')
+
       layoutedNodes.forEach((layoutedNode: any, index: number) => {
         setTimeout(() => {
           const nodeIndex = nodes.value.findIndex((n: any) => n.id === layoutedNode.id)
           if (nodeIndex !== -1) {
-            // 创建节点的副本并更新位置和连接点
-            const updatedNode = { 
+            const updatedNode = {
               ...nodes.value[nodeIndex],
               position: layoutedNode.position,
               sourcePosition: layoutedNode.sourcePosition,
-              targetPosition: layoutedNode.targetPosition
+              targetPosition: layoutedNode.targetPosition,
             }
-            
-            // 更新节点
-            nodes.value[nodeIndex] = updatedNode
+            nodes.value = [
+              ...nodes.value.slice(0, nodeIndex),
+              updatedNode,
+              ...nodes.value.slice(nodeIndex + 1),
+            ]
+          }
+
+          if (index === layoutedNodes.length - 1) {
+            nextTick(() => {
+              layoutedNodes.forEach((ln: any) => {
+                updateNode(ln.id, {
+                  sourcePosition: ln.sourcePosition,
+                  targetPosition: ln.targetPosition,
+                })
+              })
+              const currentEdges = [...edges.value]
+              edges.value = []
+              nextTick(() => {
+                edges.value = currentEdges
+                console.log('✅ 边重新渲染完成(LR)')
+              })
+            })
           }
         }, index * staggerDelay)
       })
-
-      // 等待所有动画完成后再调整视图
-      setTimeout(() => fitView({ padding: 0.2, duration: 800 }),
-        layoutedNodes.length * staggerDelay + transitionDuration)
+      setTimeout(() => fitView({ padding: 0.2, duration: 800 }), layoutedNodes.length * staggerDelay + transitionDuration + 100)
     } else {
-      // 不使用动画，直接更新节点位置和连接点
-      nodes.value = layoutedNodes.map((layoutedNode: any) => {
-        // 确保保留原始节点的所有属性，只更新位置和连接点
-        const originalNode = nodes.value.find((n: any) => n.id === layoutedNode.id)
+      nodes.value = layoutedNodes.map((ln: any) => {
+        const originalNode = nodes.value.find((n: any) => n.id === ln.id)
         if (originalNode) {
           return {
             ...originalNode,
-            position: layoutedNode.position,
-            sourcePosition: layoutedNode.sourcePosition,
-            targetPosition: layoutedNode.targetPosition
+            position: ln.position,
+            sourcePosition: ln.sourcePosition,
+            targetPosition: ln.targetPosition,
           }
         }
-        return layoutedNode
+        return ln
       })
-      
-      // 立即调整视图
-      nextTick(() => fitView({ padding: 0.2 }))
+      nextTick(() => {
+        nodes.value.forEach((node: any) => {
+          updateNode(node.id, {
+            sourcePosition: node.sourcePosition,
+            targetPosition: node.targetPosition,
+          })
+        })
+        const currentEdges = [...edges.value]
+        edges.value = []
+        nextTick(() => {
+          edges.value = currentEdges
+          fitView({ padding: 0.2, duration: 800 })
+        })
+      })
     }
   } catch (error) {
-    console.error('布局应用失败:', error)
+    console.error('布局应用失败(LR):', error)
   }
 }
 
@@ -582,22 +668,8 @@ const onNodesInitialized = () => {
   nodes.value.forEach((node: any) => {
     initialNodePositions.set(node.id, { ...node.position })
   })
-  
-  // 应用初始布局
-  applyLayout('TB')
-}
-
-const onLayoutChange = (direction: string) => {
-  console.log(`布局方向改变: ${direction}`)
-  
-  // 确保布局方向有效
-  if (!['TB', 'BT', 'LR', 'RL'].includes(direction)) {
-    console.warn(`无效的布局方向: ${direction}，使用默认值: TB`)
-    direction = 'TB'
-  }
-  
-  // 应用新布局
-  applyLayout(direction)
+  // 默认应用水平布局
+  applyLayout('LR')
 }
 
 const onFitView = () => {
@@ -605,17 +677,15 @@ const onFitView = () => {
 }
 
 const onResetLayout = () => {
-  console.log(`重置到初始位置`)
-  // 重置到初始位置
+  // 重置到初始位置后，仍应用LR
   nodes.value.forEach((node: any) => {
     const initialPos = initialNodePositions.get(node.id)
     if (initialPos) {
       node.position = { ...initialPos }
     }
   })
-  
   nextTick(() => {
-    applyLayout(layoutDirection.value)
+    applyLayout('LR')
   })
 }
 
@@ -625,9 +695,7 @@ const onSpacingChange = (type: 'node' | 'rank', value: number) => {
   } else {
     layoutSettings.rankSpacing = value
   }
-  
-  // 重新应用布局
-  applyLayout(layoutDirection.value)
+  applyLayout('LR')
 }
 
 const onAnimateToggle = (value: boolean) => {
@@ -649,6 +717,7 @@ const onSelectChainTable = (tableName: string, chainName: string) => {
 </script>
 
 <style scoped>
+/* 保持原样式 */
 .dataflow-view {
   height: 800px;
   position: relative;

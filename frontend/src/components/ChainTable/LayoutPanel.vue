@@ -1,52 +1,33 @@
 <template>
-  <div class="layout-panel">
+  <div class="layout-panel" :class="{ collapsed: isCollapsed }">
     <div class="panel-header">
       <h4>布局控制</h4>
+      <button class="collapse-btn" title="收起/展开" @click="toggleCollapse">
+        <el-icon>
+          <component :is="isCollapsed ? ArrowRight : ArrowDown" />
+        </el-icon>
+      </button>
     </div>
-    
-    <div class="layout-buttons">
-      <button 
-        title="垂直布局" 
-        :class="{ active: currentDirection === 'TB' }"
-        @click="$emit('layout-change', 'TB')"
-      >
-        <el-icon><ArrowDown /></el-icon>
-        <span>垂直</span>
-      </button>
 
-      <button 
-        title="水平布局" 
-        :class="{ active: currentDirection === 'LR' }"
-        @click="$emit('layout-change', 'LR')"
-      >
-        <el-icon><ArrowRight /></el-icon>
-        <span>水平</span>
-      </button>
-
-      <button 
-        title="自动适配" 
-        @click="$emit('fit-view')"
-      >
+    <div v-if="!isCollapsed" class="layout-buttons">
+      <button title="自动适配" @click="$emit('fit-view')">
         <el-icon><FullScreen /></el-icon>
         <span>适配</span>
       </button>
 
-      <button 
-        title="重置布局" 
-        @click="$emit('reset-layout')"
-      >
+      <button title="重置布局" @click="$emit('reset-layout')">
         <el-icon><RefreshRight /></el-icon>
         <span>重置</span>
       </button>
     </div>
 
-    <div class="layout-options">
+    <div v-if="!isCollapsed" class="layout-options">
       <div class="option-item">
         <label>节点间距</label>
         <el-slider
           :model-value="nodeSpacing"
-          :min="50"
-          :max="200"
+          :min="40"
+          :max="100"
           :step="10"
           size="small"
           @update:model-value="$emit('spacing-change', 'node', $event)"
@@ -57,8 +38,8 @@
         <label>层级间距</label>
         <el-slider
           :model-value="rankSpacing"
-          :min="80"
-          :max="300"
+          :min="40"
+          :max="100"
           :step="20"
           size="small"
           @update:model-value="$emit('spacing-change', 'rank', $event)"
@@ -66,10 +47,7 @@
       </div>
 
       <div class="option-item">
-        <el-checkbox 
-          :model-value="animateLayout"
-          @update:model-value="$emit('animate-toggle', $event)"
-        >
+        <el-checkbox :model-value="animateLayout" @update:model-value="$emit('animate-toggle', $event)">
           动画过渡
         </el-checkbox>
       </div>
@@ -88,7 +66,6 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'layout-change', direction: string): void
   (e: 'fit-view'): void
   (e: 'reset-layout'): void
   (e: 'spacing-change', type: 'node' | 'rank', value: number): void
@@ -96,7 +73,13 @@ interface Emits {
 }
 
 defineProps<Props>()
-defineEmits<Emits>()
+const emit = defineEmits<Emits>()
+
+const isCollapsed = ref(false)
+
+function toggleCollapse() {
+  isCollapsed.value = !isCollapsed.value
+}
 </script>
 
 <style scoped>
@@ -110,7 +93,15 @@ defineEmits<Emits>()
   min-width: 200px;
 }
 
+.layout-panel.collapsed {
+  padding: 8px 12px;
+  min-width: auto;
+}
+
 .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
 }
 
@@ -119,6 +110,19 @@ defineEmits<Emits>()
   font-size: 14px;
   font-weight: 600;
   color: #374151;
+}
+
+.collapse-btn {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.collapse-btn:hover {
+  background: #f3f4f6;
 }
 
 .layout-buttons {
@@ -147,12 +151,6 @@ defineEmits<Emits>()
   background: #f3f4f6;
   border-color: #3b82f6;
   color: #3b82f6;
-}
-
-.layout-buttons button.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: #ffffff;
 }
 
 .layout-options {

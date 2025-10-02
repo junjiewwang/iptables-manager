@@ -4,6 +4,17 @@
     :style="nodeStyle"
     @click="nodeProps.events.nodeClick"
   >
+    <Handle
+      type="source"
+      :position="nodeProps.sourcePosition ?? Position.Right"
+      :id="`${nodeProps.id}-source`"
+    />
+    <Handle
+      type="target"
+      :position="nodeProps.targetPosition ?? Position.Left"
+      :id="`${nodeProps.id}-target`"
+    />
+
     <div class="node-icon">
       <i :class="`fa fa-${nodeProps.data.icon || 'globe'}`"></i>
     </div>
@@ -16,6 +27,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Handle, Position } from '@vue-flow/core'
 
 interface Props {
   nodeProps: {
@@ -27,6 +39,8 @@ interface Props {
       color: string
       borderColor: string
     }
+    sourcePosition?: any
+    targetPosition?: any
   }
 }
 
@@ -53,6 +67,12 @@ const nodeStyle = computed(() => ({
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.vue-flow__handle) {
+  width: 8px;
+  height: 8px;
+  opacity: 0;
 }
 
 .network-node:hover {

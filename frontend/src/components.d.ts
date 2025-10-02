@@ -30,6 +30,7 @@ declare module 'vue' {
     ElDescriptions: typeof import('element-plus/es')['ElDescriptions']
     ElDescriptionsItem: typeof import('element-plus/es')['ElDescriptionsItem']
     ElDialog: typeof import('element-plus/es')['ElDialog']
+    ElDivider: typeof import('element-plus/es')['ElDivider']
     ElDropdown: typeof import('element-plus/es')['ElDropdown']
     ElDropdownItem: typeof import('element-plus/es')['ElDropdownItem']
     ElDropdownMenu: typeof import('element-plus/es')['ElDropdownMenu']
@@ -77,5 +78,8 @@ declare module 'vue' {
     TableToolbar: typeof import('./components/ChainTable/TableToolbar.vue')['default']
     TableView: typeof import('./components/ChainTable/views/TableView.vue')['default']
     TunnelAnalysis: typeof import('./components/tunnel-analysis/TunnelAnalysis.vue')['default']
+  }
+  export interface GlobalDirectives {
+    vLoading: typeof import('element-plus/es')['ElLoadingDirective']
   }
 }

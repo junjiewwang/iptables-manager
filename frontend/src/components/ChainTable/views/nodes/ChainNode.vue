@@ -6,6 +6,18 @@
     ]"
     @click="nodeProps.events.nodeClick"
   >
+    <!-- 动态连接点：根据节点的sourcePosition/targetPosition在相应边渲染Handle -->
+    <Handle
+      type="source"
+      :position="nodeProps.sourcePosition ?? Position.Right"
+      :id="`${nodeProps.id}-source`"
+    />
+    <Handle
+      type="target"
+      :position="nodeProps.targetPosition ?? Position.Left"
+      :id="`${nodeProps.id}-target`"
+    />
+
     <div class="chain-title">{{ nodeProps.data.label }}</div>
     <div class="chain-tables">
       <span 
@@ -24,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-
+import { Handle, Position } from '@vue-flow/core'
 
 interface Props {
   nodeProps: any
@@ -52,6 +64,13 @@ const selectChainTable = (tableName: string, chainName: string) => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   cursor: pointer;
   transition: all 0.3s ease;
+}
+
+/* 美观处理：隐藏默认把手外观，但仍保留连接能力 */
+:deep(.vue-flow__handle) {
+  width: 8px;
+  height: 8px;
+  opacity: 0;
 }
 
 .chain-node:hover {

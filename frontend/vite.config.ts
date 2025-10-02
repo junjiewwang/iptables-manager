@@ -11,6 +11,15 @@ export default defineConfig({
       script: {
         defineModel: true,
         propsDestructure: true
+      },
+      // 启用热重载
+      reactivityTransform: true,
+      // 模板编译选项
+      template: {
+        compilerOptions: {
+          // 在开发模式下保留注释，有助于调试
+          comments: true
+        }
       }
     }),
     // 自动导入 API
@@ -41,6 +50,16 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
+    // 启用热模块替换
+    hmr: {
+      port: 3001, // HMR 端口，避免与主端口冲突
+      overlay: true // 在浏览器中显示错误覆盖层
+    },
+    // 监听文件变化
+    watch: {
+      usePolling: true, // 在某些系统上启用轮询可以解决文件监听问题
+      interval: 100 // 轮询间隔（毫秒）
+    },
     proxy: {
       '/api': {
         // target: 'http://localhost:8080',
